@@ -5,7 +5,7 @@ const videoService = {
     formData.append('eventId', eventId);
     formData.append('participantName', participantName);
 
-    const response = await fetch('http://grega-play-backend-production.up.railway.app/api/videos/upload', {
+    const response = await fetch('https://grega-play-backend-production.up.railway.app/api/videos/upload', {
       method: 'POST',
       body: formData
     });
