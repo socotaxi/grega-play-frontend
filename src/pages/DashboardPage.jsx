@@ -1,3 +1,4 @@
+import InstallAppButton from '../components/InstallAppButton';
 import React, { useState, useEffect, useCallback, useMemo, memo } from 'react';
 import { Link } from 'react-router-dom';
 import ActivityFeed from '../components/feed/ActivityFeed';
@@ -196,7 +197,11 @@ const DashboardPage = () => {
                 ? profile.full_name
                 : user?.user_metadata?.full_name || user?.email}
             </p>
+            <div className="mt-2">
+  <InstallAppButton />
+</div>
           </div>
+          
           <div className="mt-4 flex md:mt-0 md:ml-4">
             <Link to="/create-event">
               <Button variant="primary">
