@@ -1,0 +1,2 @@
+-- SQL init script for Grega Play
+-- CREATE TABLE statements etc.
