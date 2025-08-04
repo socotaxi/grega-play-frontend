@@ -1,21 +1,28 @@
-let ffmpeg = null;
-let fetchFile = null; // ✅ Variable globale simple
+let ffmpegInstance = null;
 
 export const compressVideo = async (file) => {
-  if (!ffmpeg) {
+  if (!ffmpegInstance) {
+    // Import dynamique ESM compatible Vite
     const ffmpegModule = await import('@ffmpeg/ffmpeg');
-    ffmpeg = ffmpegModule.createFFmpeg({ log: true });
-    fetchFile = ffmpegModule.fetchFile;
-    await ffmpeg.load();
+    const createFFmpeg = ffmpegModule?.createFFmpeg || ffmpegModule?.default?.createFFmpeg;
+    const fetchFile = ffmpegModule?.fetchFile || ffmpegModule?.default?.fetchFile;
+
+    if (typeof createFFmpeg !== 'function') {
+      throw new Error('❌ createFFmpeg() non disponible (import cassé)');
+    }
+
+    ffmpegInstance = createFFmpeg({ log: true });
+    await ffmpegInstance.load();
+    compressVideo.fetchFile = fetchFile;
   }
 
-  if (!ffmpeg || !fetchFile) {
-    throw new Error("❌ FFmpeg ou fetchFile non chargé");
+  if (!compressVideo.fetchFile || !ffmpegInstance) {
+    throw new Error('❌ FFmpeg non chargé correctement');
   }
 
-  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+  ffmpegInstance.FS('writeFile', 'input.mp4', await compressVideo.fetchFile(file));
 
-  await ffmpeg.run(
+  await ffmpegInstance.run(
     '-i', 'input.mp4',
     '-vf', 'scale=640:-2',
     '-b:v', '800k',
@@ -23,7 +30,7 @@ export const compressVideo = async (file) => {
     'output.mp4'
   );
 
-  const data = ffmpeg.FS('readFile', 'output.mp4');
+  const data = ffmpegInstance.FS('readFile', 'output.mp4');
 
   return new File([data.buffer], 'compressed.mp4', {
     type: 'video/mp4',
