@@ -1,18 +1,20 @@
 let ffmpeg = null;
+let fetchFile = null;
 
 export const compressVideo = async (file) => {
-  // 📦 Charge FFmpeg dynamiquement uniquement au moment de l'appel
   if (!ffmpeg) {
-    const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg');
-    ffmpeg = createFFmpeg({ log: true });
+    const ffmpegModule = await import('@ffmpeg/ffmpeg');
+    ffmpeg = ffmpegModule.createFFmpeg({ log: true });
+    fetchFile = ffmpegModule.fetchFile;
     await ffmpeg.load();
-    compressVideo.fetchFile = fetchFile;
   }
 
-  // 📝 Écrit le fichier vidéo d'entrée
-  ffmpeg.FS('writeFile', 'input.mp4', await compressVideo.fetchFile(file));
+  if (!ffmpeg || !fetchFile) {
+    throw new Error("❌ FFmpeg non chargé correctement");
+  }
 
-  // ⚙️ Commande FFmpeg : redimensionner et compresser
+  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+
   await ffmpeg.run(
     '-i', 'input.mp4',
     '-vf', 'scale=640:-2',
@@ -21,10 +23,8 @@ export const compressVideo = async (file) => {
     'output.mp4'
   );
 
-  // 📤 Lis le fichier compressé
   const data = ffmpeg.FS('readFile', 'output.mp4');
 
-  // 🔁 Renvoie un objet `File` compatible pour upload
   return new File([data.buffer], 'compressed.mp4', {
     type: 'video/mp4',
   });
