@@ -1,5 +1,9 @@
+import { compressVideo } from './compressService';
+
 const videoService = {
   async uploadVideo(eventId, participantName, file) {
+    // ✅ Compression de la vidéo avant envoi
+    const compressedFile = await compressVideo(file);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('eventId', eventId);
