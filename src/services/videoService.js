@@ -9,7 +9,7 @@ const videoService = {
     const compressedFile = await compressVideo(file);
     
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append('file', compressedFile); // ✅ Bon fichier compressé
     formData.append('eventId', eventId);
     formData.append('participantName', participantName);
 
