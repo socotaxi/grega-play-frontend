@@ -3,6 +3,11 @@ import { toast } from 'react-toastify'; // 🔔 importe le toast
 
 const videoService = {
   async uploadVideo(eventId, participantName, file, ...rest) {
+if (typeof compressVideo !== 'function') {
+      console.error('❌ compressVideo est introuvable ou pas une fonction');
+      throw new Error("Erreur interne : compressVideo() indisponible");
+    }
+
     toast.info("Compression de votre vidéo en cours... 🎬", { autoClose: 4000 });
 
     // ✅ Compression de la vidéo avant envoi

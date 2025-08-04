@@ -1,15 +1,18 @@
 let ffmpeg = null;
-let fetchFile = null;
 
 export const compressVideo = async (file) => {
   if (!ffmpeg) {
-    const { createFFmpeg, fetchFile: importedFetchFile } = await import('@ffmpeg/ffmpeg');
+    const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg');
     ffmpeg = createFFmpeg({ log: true });
-    fetchFile = importedFetchFile;
     await ffmpeg.load();
+    compressVideo.fetchFile = fetchFile;
   }
 
-  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+  if (!compressVideo.fetchFile) {
+    throw new Error("fetchFile est manquant");
+  }
+
+  ffmpeg.FS('writeFile', 'input.mp4', await compressVideo.fetchFile(file));
 
   await ffmpeg.run(
     '-i', 'input.mp4',
