@@ -1,31 +1,31 @@
-import { createFFmpeg, fetchFile } from '@ffmpeg/ffmpeg';
-
-const ffmpeg = createFFmpeg({ log: true });
+let ffmpeg = null;
 
 export const compressVideo = async (file) => {
-  if (!ffmpeg.isLoaded()) {
+  // 📦 Charge FFmpeg dynamiquement uniquement au moment de l'appel
+  if (!ffmpeg) {
+    const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg');
+    ffmpeg = createFFmpeg({ log: true });
     await ffmpeg.load();
+    compressVideo.fetchFile = fetchFile;
   }
 
-  // On écrit la vidéo dans le système de fichiers virtuel
-  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
+  // 📝 Écrit le fichier vidéo d'entrée
+  ffmpeg.FS('writeFile', 'input.mp4', await compressVideo.fetchFile(file));
 
-  // Commande FFmpeg : réduire résolution + bitrate
+  // ⚙️ Commande FFmpeg : redimensionner et compresser
   await ffmpeg.run(
     '-i', 'input.mp4',
-    '-vf', 'scale=640:-2',     // largeur max 640px, hauteur auto
-    '-b:v', '800k',            // bitrate vidéo réduit
+    '-vf', 'scale=640:-2',
+    '-b:v', '800k',
     '-preset', 'ultrafast',
     'output.mp4'
   );
 
-  // Lecture du fichier compressé
+  // 📤 Lis le fichier compressé
   const data = ffmpeg.FS('readFile', 'output.mp4');
 
-  // Conversion en objet File compatible FormData
-  const compressedFile = new File([data.buffer], 'compressed.mp4', {
+  // 🔁 Renvoie un objet `File` compatible pour upload
+  return new File([data.buffer], 'compressed.mp4', {
     type: 'video/mp4',
   });
-
-  return compressedFile;
 };
