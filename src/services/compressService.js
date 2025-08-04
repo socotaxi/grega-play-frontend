@@ -3,14 +3,10 @@ let fetchFile = null;
 
 export const compressVideo = async (file) => {
   if (!ffmpeg) {
-    const ffmpegModule = await import('@ffmpeg/ffmpeg');
-    ffmpeg = ffmpegModule.createFFmpeg({ log: true });
-    fetchFile = ffmpegModule.fetchFile;
+    const { createFFmpeg, fetchFile: importedFetchFile } = await import('@ffmpeg/ffmpeg');
+    ffmpeg = createFFmpeg({ log: true });
+    fetchFile = importedFetchFile;
     await ffmpeg.load();
-  }
-
-  if (!ffmpeg || !fetchFile) {
-    throw new Error("❌ FFmpeg non chargé correctement");
   }
 
   ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
