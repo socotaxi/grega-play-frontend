@@ -1,18 +1,19 @@
 let ffmpeg = null;
+let fetchFile = null; // ✅ Variable globale simple
 
 export const compressVideo = async (file) => {
   if (!ffmpeg) {
-    const { createFFmpeg, fetchFile } = await import('@ffmpeg/ffmpeg');
-    ffmpeg = createFFmpeg({ log: true });
+    const ffmpegModule = await import('@ffmpeg/ffmpeg');
+    ffmpeg = ffmpegModule.createFFmpeg({ log: true });
+    fetchFile = ffmpegModule.fetchFile;
     await ffmpeg.load();
-    compressVideo.fetchFile = fetchFile;
   }
 
-  if (!compressVideo.fetchFile) {
-    throw new Error("fetchFile est manquant");
+  if (!ffmpeg || !fetchFile) {
+    throw new Error("❌ FFmpeg ou fetchFile non chargé");
   }
 
-  ffmpeg.FS('writeFile', 'input.mp4', await compressVideo.fetchFile(file));
+  ffmpeg.FS('writeFile', 'input.mp4', await fetchFile(file));
 
   await ffmpeg.run(
     '-i', 'input.mp4',
