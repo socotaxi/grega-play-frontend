@@ -18,7 +18,7 @@ if (typeof compressVideo !== 'function') {
     formData.append('eventId', eventId);
     formData.append('participantName', participantName);
 
-    const response = await fetch('https://grega-play-backend-production.up.railway.app/api/videos/upload', {
+    const response = await fetch('https://grega-play-backend-production.up.railway.app/api/videos/upload-and-compress', {
       method: 'POST',
       body: formData
     });
