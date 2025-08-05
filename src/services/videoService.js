@@ -1,4 +1,3 @@
-import { compressVideo } from './compressService';
 import { toast } from 'react-toastify'; // 🔔 importe le toast
 
 const videoService = {
@@ -11,10 +10,10 @@ if (typeof compressVideo !== 'function') {
     toast.info("Compression de votre vidéo en cours... 🎬", { autoClose: 4000 });
 
     // ✅ Compression de la vidéo avant envoi
-    const compressedFile = await compressVideo(file);
+
     
     const formData = new FormData();
-    formData.append('file', compressedFile); // ✅ Bon fichier compressé
+    formData.append('file', file); // envoyer le fichier brut, le backend s’occupe de tout
     formData.append('eventId', eventId);
     formData.append('participantName', participantName);
 
