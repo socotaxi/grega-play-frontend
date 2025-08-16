@@ -10,6 +10,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const init = async () => {
+      console.log("✅ AuthProvider monté");
       const { data, error } = await supabase.auth.getSession();
       if (error) console.error("Erreur récupération session", error);
       setSession(data?.session || null);
