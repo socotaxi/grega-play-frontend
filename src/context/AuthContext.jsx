@@ -18,12 +18,15 @@ export const AuthProvider = ({ children }) => {
     };
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+    // ✅ Nouveau listener avec cleanup correct
+    const { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user || null);
     });
 
-    return () => listener?.subscription?.unsubscribe();
+    return () => {
+      subscription.unsubscribe(); // ✅ libère bien le listener
+    };
   }, []);
 
   const login = async (email, password) => {
