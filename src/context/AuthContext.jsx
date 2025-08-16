@@ -18,14 +18,16 @@ export const AuthProvider = ({ children }) => {
     };
     init();
 
-    // ✅ Nouveau listener avec cleanup correct
-    const { subscription } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setUser(session?.user || null);
-    });
+    // ✅ Version compatible Supabase v2
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user || null);
+      }
+    );
 
     return () => {
-      subscription.unsubscribe(); // ✅ libère bien le listener
+      subscription?.unsubscribe(); // ✅ évite crash si undefined
     };
   }, []);
 
