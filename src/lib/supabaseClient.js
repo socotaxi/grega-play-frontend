@@ -31,7 +31,7 @@ try {
   
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
-      autoRefreshToken: false,
+      autoRefreshToken: false, // désactive le refresh auto pour couper le spam 429
       persistSession: true,
       detectSessionInUrl: true
     },
