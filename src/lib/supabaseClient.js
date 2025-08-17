@@ -29,20 +29,34 @@ try {
     console.log('Initializing Supabase client...');
   }
   
+  const fetchWithRetry = async (...args) => {
+    const maxRetries = 3;
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const response = await fetch(...args);
+        if (response.status !== 429 || attempt === maxRetries) {
+          return response;
+        }
+        const waitTime = 500 * Math.pow(2, attempt);
+        if (import.meta.env.DEV) {
+          console.warn(`Supabase 429 received. Retrying in ${waitTime}ms`);
+        }
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+      } catch (error) {
+        console.error('Supabase fetch error:', error);
+        throw error;
+      }
+    }
+  };
+
   supabase = createClient(supabaseUrl, supabaseAnonKey, {
     auth: {
       autoRefreshToken: false, // désactive le refresh auto pour couper le spam 429
       persistSession: true,
       detectSessionInUrl: true
     },
-    // Add global error handler
-    global: {
-      fetch: (...args) => fetch(...args)
-        .catch(error => {
-          console.error('Supabase fetch error:', error);
-          throw error;
-        })
-    },
+    // Handle rate limits from Supabase API
+    global: { fetch: fetchWithRetry },
     // Add caching to improve performance
     realtime: {
       timeout: 30000 // longer timeout for stability
