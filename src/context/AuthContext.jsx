@@ -18,10 +18,12 @@ export const AuthProvider = ({ children }) => {
     };
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      setUser(session?.user || null);
-    });
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        setSession(session);
+        setUser(session?.user || null);
+      }
+    );
 
     return () => listener?.subscription?.unsubscribe();
   }, []);
@@ -36,17 +38,15 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  // AuthContext.jsx
-const logout = async () => {
-  try {
-    const { error } = await supabase.auth.signOut({ scope: "local" }); // ✅ utilise "local"
-    if (error) throw error;
-  } catch (err) {
-    console.error("Erreur logout:", err.message);
-    throw err;
-  }
-};
-
+  const logout = async () => {
+    try {
+      const { error } = await supabase.auth.signOut({ scope: "local" }); // ✅ uniquement local
+      if (error) throw error;
+    } catch (err) {
+      console.error("Erreur logout:", err.message);
+      throw err;
+    }
+  };
 
   const value = { user, session, login, signup, logout, loading };
 
