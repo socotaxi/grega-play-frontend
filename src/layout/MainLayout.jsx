@@ -1,7 +1,6 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
-import InstallPwaPrompt from "../components/pwa/InstallPWA"; // ✅ import du composant
 
 const MainLayout = ({ children }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -77,10 +76,6 @@ const MainLayout = ({ children }) => {
           </Link>
         </div>
       )}
-
-{/* ✅ Ajout du prompt d'installation PWA */}
-      <InstallPWA />
-
 
       <main className="p-6">{children}</main>
     </div>
