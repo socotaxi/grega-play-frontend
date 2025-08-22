@@ -36,10 +36,17 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
-  const logout = async () => {
-    const { error } = await supabase.auth.signOut();
+  // AuthContext.jsx
+const logout = async () => {
+  try {
+    const { error } = await supabase.auth.signOut({ scope: "local" }); // ✅ utilise "local"
     if (error) throw error;
-  };
+  } catch (err) {
+    console.error("Erreur logout:", err.message);
+    throw err;
+  }
+};
+
 
   const value = { user, session, login, signup, logout, loading };
 
