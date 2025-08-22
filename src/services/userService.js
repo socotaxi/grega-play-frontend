@@ -1,31 +1,60 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
+import supabase from "../lib/supabaseClient";
 
 const userService = {
-  async uploadAvatar(file, userId) {
-    if (!file || !userId) throw new Error("Paramètres manquants pour l'avatar");
-
-    const fileExt = file.name.split('.').pop();
-    const fileName = `avatars/${userId}.${fileExt}`;
-    const filePath = fileName;
-
-    const { data, error } = await supabase.storage
-      .from('avatars')
-      .upload(filePath, file, { upsert: true });
+  // Récupère un utilisateur par ID
+  async getUser(userId) {
+    const { data, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("id", userId)
+      .single();
 
     if (error) throw error;
+    return data;
+  },
 
-    const { data: urlData } = supabase
-      .storage
-      .from('avatars')
-      .getPublicUrl(filePath);
+  // Met à jour un utilisateur
+  async updateUser(userId, updates) {
+    const { data, error } = await supabase
+      .from("users")
+      .update(updates)
+      .eq("id", userId)
+      .select()
+      .single();
 
-    return urlData?.publicUrl;
-  }
+    if (error) throw error;
+    return data;
+  },
+
+  // Upload avatar et met à jour la colonne avatar_url
+  async uploadAvatar(userId, file) {
+    const fileExt = file.name.split(".").pop();
+    const fileName = `${userId}-${Date.now()}.${fileExt}`;
+    const filePath = `avatars/${fileName}`;
+
+    // Upload du fichier
+    const { error: uploadError } = await supabase.storage
+      .from("avatars")
+      .upload(filePath, file);
+
+    if (uploadError) throw uploadError;
+
+    // Génère l’URL publique
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("avatars").getPublicUrl(filePath);
+
+    // Mise à jour du profil utilisateur
+    const { data, error } = await supabase
+      .from("users")
+      .update({ avatar_url: publicUrl })
+      .eq("id", userId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return data;
+  },
 };
 
 export default userService;

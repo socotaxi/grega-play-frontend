@@ -4,12 +4,17 @@ import path from 'path';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
-  base: './', // ✅ important pour déploiement Vercel
+  base: './', // ✅ important pour Vercel
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'logo192x192.png.png', 'logo592x512.png'],
+      includeAssets: [
+        'favicon.ico',
+        'apple-touch-icon.png',
+        'logo192x192.png',
+        'logo512x512.png',
+      ],
       manifest: {
         name: 'Grega Play',
         short_name: 'Grega',
@@ -18,6 +23,7 @@ export default defineConfig({
         background_color: '#ffffff',
         display: 'standalone',
         start_url: '/',
+        scope: '/',
         icons: [
           {
             src: '/logo192x192.png',
@@ -25,7 +31,7 @@ export default defineConfig({
             type: 'image/png',
           },
           {
-            src: '/logo592x512.png',
+            src: '/logo512x512.png',
             sizes: '512x512',
             type: 'image/png',
           },

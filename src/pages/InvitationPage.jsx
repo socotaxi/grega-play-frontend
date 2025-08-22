@@ -7,6 +7,7 @@ import Loading from '../components/ui/Loading';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import invitationService from '../services/invitationService';
+import activityService from "../services/activityService";
 
 const InvitationPage = () => {
   const { token } = useParams();
@@ -73,6 +74,14 @@ const InvitationPage = () => {
       
       if (success) {
         toast.success('Invitation acceptée avec succès !');
+
+await activityService.logActivity(
+  invitation.event_id,
+  user.id,
+  "accepted_invitation",
+  `${user.email} a rejoint l'événement 🎉`
+);
+
         navigate(`/events/${invitation.events.id}`);
       } else {
         toast.error('Erreur lors de l\'acceptation de l\'invitation');
@@ -89,6 +98,14 @@ const InvitationPage = () => {
       
       if (success) {
         toast.info('Invitation déclinée');
+
+await activityService.logActivity(
+  invitation.event_id,
+  user.id,
+  "declined_invitation",
+  `${user.email} a refusé l'invitation ❌`
+);
+
         setInvitation(prev => ({ ...prev, status: 'declined' }));
       } else {
         toast.error('Erreur lors du refus de l\'invitation');

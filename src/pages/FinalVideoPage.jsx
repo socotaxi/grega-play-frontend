@@ -1,3 +1,4 @@
+// src/pages/FinalVideoPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
@@ -6,12 +7,13 @@ import Loading from '../components/ui/Loading';
 import eventService from '../services/eventService';
 import videoService from '../services/videoService';
 import { useAuth } from '../context/AuthContext';
+import activityService from "../services/activityService";
 
 const SUPABASE_PROJECT_ID = 'cgqnrqbyvetcgwolkjvl.supabase.co';
 
 const FinalVideoPage = () => {
   const { eventId } = useParams();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [event, setEvent] = useState(null);
   const [finalVideo, setFinalVideo] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,21 +24,29 @@ const FinalVideoPage = () => {
 
   const isOwner = user && event && user.id === event.user_id;
 
+  // Charger vidéos soumises
   useEffect(() => {
     const fetchSubmittedVideos = async () => {
       try {
         const videos = await videoService.getVideosByEvent(eventId);
-        setSubmittedVideos(videos);
+
+        if (!isOwner && user) {
+          const userVideos = videos.filter(v => v.user_id === user.id);
+          setSubmittedVideos(userVideos);
+        } else {
+          setSubmittedVideos(videos);
+        }
       } catch (err) {
         console.error('Erreur chargement des vidéos soumises:', err);
       }
     };
 
-    if (isOwner) {
+    if (user) {
       fetchSubmittedVideos();
     }
-  }, [event, user, eventId]);
+  }, [event, user, eventId, isOwner]);
 
+  // Charger détails de l'événement
   useEffect(() => {
     const fetchEventDetails = async () => {
       try {
@@ -58,7 +68,7 @@ const FinalVideoPage = () => {
     fetchEventDetails();
   }, [eventId]);
 
-  // 🔽 AJOUT : fonction pour supprimer une vidéo si on est créateur
+  // Suppression vidéo
   const handleDeleteVideo = async (videoId) => {
     if (!window.confirm("Supprimer cette vidéo ?")) return;
     try {
@@ -70,8 +80,9 @@ const FinalVideoPage = () => {
     }
   };
 
+  // Génération vidéo finale
   const handleGenerateVideo = async () => {
-    if (!event) return;
+    if (!event || !user) return;
 
     try {
       setProcessing(true);
@@ -97,6 +108,19 @@ const FinalVideoPage = () => {
 
       if (updatedEvent.final_video_url) {
         setFinalVideo(updatedEvent.final_video_url);
+
+        const creatorName =
+          profile?.full_name && profile.full_name !== "User"
+            ? profile.full_name
+            : user?.email || "Un utilisateur";
+
+        // ✅ Ajout au fil d’actualité
+        await activityService.logActivity(
+          eventId,
+          user.id,
+          "generated_final_video",
+          `${creatorName} a généré la vidéo finale de l'événement "${updatedEvent.title}" 🎬✅`
+        );
       }
     } catch (err) {
       console.error('Error generating video:', err);
@@ -130,12 +154,12 @@ const FinalVideoPage = () => {
           </div>
           <div className="mt-4 flex md:mt-0 md:ml-4 space-x-2">
             {['open', 'ready'].includes(event?.status) && (
-              <Link to={`/submit/${event.id}`}>
+              <Link to={`/submit-video/${event.id}`}>
                 <Button>Soumettre une vidéo</Button>
               </Link>
             )}
             {isOwner && (
-              <Link to={`/events/${event.id}/participants`}>
+              <Link to={`/events/${event.id}/manage-participants`}>
                 <Button variant="secondary">Inviter des participants</Button>
               </Link>
             )}
@@ -165,28 +189,27 @@ const FinalVideoPage = () => {
                 </video>
               </div>
               <div className="mt-5 flex flex-col sm:flex-row justify-center gap-4">
-  <a
-    href={finalVideo}
-    download={`${event.title.replace(/\s+/g, '_')}_final.mp4`}
-    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
-  >
-    Télécharger la vidéo
-  </a>
-
-  <a
-    href={`https://wa.me/?text=${encodeURIComponent(`🎬 Voici notre vidéo finale de l'événement "${event.title}" 🎉\n\n${finalVideo}`)}`}
-    target="_blank"
-    rel="noopener noreferrer"
-    className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-md hover:bg-green-600"
-  >
-    Partager sur WhatsApp
-  </a>
-</div>
+                <a
+                  href={finalVideo}
+                  download={`${event.title.replace(/\s+/g, '_')}_final.mp4`}
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-indigo-600 rounded-md hover:bg-indigo-700"
+                >
+                  Télécharger la vidéo
+                </a>
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(`🎬 Voici notre vidéo finale de l'événement "${event.title}" 🎉\n\n${finalVideo}`)}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-md hover:bg-green-600"
+                >
+                  Partager sur WhatsApp
+                </a>
+              </div>
             </>
-          ) : submittedVideos.length > 0 && canStartProcessing ? ( // ✅ correction ici
+          ) : submittedVideos.length > 0 && canStartProcessing ? (
             <div className="text-center">
               <h3 className="mt-2 text-lg font-medium text-gray-900">Prêt pour le montage</h3>
-              <p className="mt-1 text-sm text-gray-500">{submittedVideos.length} vidéos ont été soumises. Vous pouvez maintenant générer la vidéo finale.</p>
+              <p className="mt-1 text-sm text-gray-500">{submittedVideos.length} vidéos ont été soumises.</p>
               <div className="mt-5">
                 <Button onClick={handleGenerateVideo} loading={processing} disabled={processing}>
                   Générer la vidéo
@@ -210,8 +233,7 @@ const FinalVideoPage = () => {
             <p className="text-center text-gray-500 mt-4">Aucune vidéo finale disponible.</p>
           )}
         </div>
- 
-        {/* 🔽 MODIFICATION : ajout du bouton supprimer pour le créateur */}
+
         {submittedVideos.length > 0 && (
           <div className="mt-10">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">🎥 Vidéos soumises</h3>
@@ -219,12 +241,15 @@ const FinalVideoPage = () => {
               {submittedVideos.map((video, index) => (
                 <div key={video.id || index} className="border rounded-lg shadow-sm p-2 bg-white">
                   <video
-                    src={`https://cgqnrqbyvetcgwolkjvl.supabase.co/storage/v1/object/public/videos/${video.storage_path}`}
+                    src={`https://${SUPABASE_PROJECT_ID}/storage/v1/object/public/videos/${video.storage_path}`}
                     controls
                     className="w-full h-auto rounded"
                   />
-                  <p className="mt-2 text-sm text-gray-700 text-center truncate">{video.participant_name}</p>
-                  {isOwner && (
+                  <p className="mt-2 text-sm text-gray-700 text-center truncate">
+                    {video.participant_name}
+                  </p>
+
+                  {(isOwner || video.user_id === user?.id) && (
                     <div className="mt-2 flex justify-center">
                       <button
                         onClick={() => handleDeleteVideo(video.id)}

@@ -1,3 +1,4 @@
+// src/pages/SubmitVideoPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
@@ -7,13 +8,15 @@ import eventService from '../services/eventService';
 import videoService from '../services/videoService';
 import { toast } from 'react-toastify';
 import supabase from '../lib/supabaseClient';
+import activityService from "../services/activityService";
+import { useAuth } from "../context/AuthContext";
 
 const SubmitVideoPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
 
   const [event, setEvent] = useState(null);
-  const [participantName, setParticipantName] = useState('');
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,7 +25,12 @@ const SubmitVideoPage = () => {
   const [error, setError] = useState(null);
   const [existingVideo, setExistingVideo] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [progressTimer, setProgressTimer] = useState(null);
+
+  // Nom affiché pour l’utilisateur (pas dans la BDD)
+  const participantName =
+    profile?.full_name && profile.full_name !== "User"
+      ? profile.full_name
+      : user?.email || "Invité";
 
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -51,30 +59,29 @@ const SubmitVideoPage = () => {
 
   useEffect(() => {
     const checkExistingVideo = async () => {
-      if (!participantName.trim()) return;
+      if (!user?.id) return;
       try {
-        const video = await videoService.getMyVideoForEvent(eventId, participantName.trim());
+        const video = await videoService.getMyVideoForEvent(eventId, user.id);
         setExistingVideo(video);
-      } catch (err) {
+      } catch {
         setExistingVideo(null);
       }
     };
 
     checkExistingVideo();
-  }, [participantName, eventId]);
+  }, [user?.id, eventId]);
 
   useEffect(() => {
     if (success) {
       const timer = setTimeout(() => {
-        navigate('/dashboard');
-      }, 4000); // ⏳ Redirection après 4 secondes
-
+        navigate(`/events/${eventId}/final`);
+      }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [success, navigate]);
+  }, [success, navigate, eventId]);
 
   const handleFileChange = (e) => {
-    const file = e.target.files[0];
+    const file = e.target.files?.[0];
     if (!file) return;
 
     if (!file.type.startsWith('video/')) {
@@ -93,7 +100,7 @@ const SubmitVideoPage = () => {
       await videoService.deleteVideo(existingVideo.id);
       setExistingVideo(null);
       toast.success('Vidéo supprimée');
-    } catch (err) {
+    } catch {
       toast.error('Erreur lors de la suppression');
     }
   };
@@ -102,38 +109,30 @@ const SubmitVideoPage = () => {
     e.preventDefault();
     setError(null);
 
-    if (!participantName.trim()) {
-      setError('Veuillez entrer votre nom.');
+    if (!selectedFile || !(selectedFile instanceof File)) {
+      setError("Veuillez sélectionner un fichier vidéo valide.");
       return;
     }
 
-    if (!selectedFile) {
-      setError('Veuillez sélectionner une vidéo à soumettre.');
-      return;
-    }
-
-    setUploadProgress(0);
-    const timer = setInterval(() => {
-      setUploadProgress(prev => {
-        if (prev >= 90) {
-          clearInterval(timer);
-          return 90;
-        }
-        return prev + 2;
-      });
-    }, 300);
-    setProgressTimer(timer);
     setSubmitting(true);
+    setUploadProgress(0);
 
     try {
-      await videoService.uploadVideo(eventId, participantName.trim(), selectedFile, null);
+      // ⚡️ Correction : passer user.id (UUID) en user_id
+      await videoService.uploadVideo(eventId, user.id, selectedFile);
+
+      await activityService.logActivity({
+        event_id: eventId,
+        user_id: user?.id || null,
+        type: "uploaded_video",
+        message: `${participantName} a posté une vidéo 🎥`,
+      });
+
       setUploadProgress(100);
-      clearInterval(timer);
       setSuccess(true);
     } catch (err) {
-      console.error('Erreur envoi vidéo:', err);
-      setError(err.message || 'Une erreur est survenue.');
-      clearInterval(timer);
+      console.error("Erreur envoi vidéo:", err);
+      setError(err.message || "Une erreur est survenue.");
     } finally {
       setSubmitting(false);
     }
@@ -148,8 +147,7 @@ const SubmitVideoPage = () => {
           <div className="bg-white shadow rounded-lg p-6 text-center">
             <h2 className="text-lg font-semibold text-green-600">Merci pour votre vidéo !</h2>
             <p className="mt-2 text-sm text-gray-600">
-              Elle sera incluse dans le montage final. <br />
-              Redirection vers le tableau de bord...
+              Vous allez être redirigé automatiquement vers la vidéo finale...
             </p>
           </div>
         </div>
@@ -183,15 +181,8 @@ const SubmitVideoPage = () => {
 
         <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Votre nom</label>
-            <input
-              type="text"
-              value={participantName}
-              onChange={(e) => setParticipantName(e.target.value)}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2"
-              placeholder="Entrez votre nom"
-              required
-            />
+            <label className="block text-sm font-medium text-gray-700">Participant</label>
+            <p className="mt-1 text-gray-900 font-medium">{participantName}</p>
           </div>
 
           {!existingVideo && (

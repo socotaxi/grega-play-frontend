@@ -1,53 +1,56 @@
-
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import MainLayout from '../components/layout/MainLayout';
-import Button from '../components/ui/Button';
-import { useAuth } from '../context/AuthContext';
-import eventService from '../services/eventService';
-import invitationService from '../services/invitationService';
+// src/pages/CreateEventPage.jsx
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import { useAuth } from "../context/AuthContext";
+import eventService from "../services/eventService";
+import invitationService from "../services/invitationService";
+import activityService from "../services/activityService";
+import Button from "../components/ui/Button";
+import MainLayout from "../layout/MainLayout"; // ✅ ajout import
 
 const CreateEventPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
+
   const [formData, setFormData] = useState({
-    title: '',
-    description: '',
-    theme: '',
-    endDate: '',
-    videoDuration: 60,
+    title: "",
+    description: "",
+    theme: "",
+    videoDuration: 30,
     maxClipDuration: 30,
-    participants: []
+    endDate: "",
+    participants: [],
   });
-  const [emailInput, setEmailInput] = useState('');
+
   const [loading, setLoading] = useState(false);
+  const [participantEmail, setParticipantEmail] = useState("");
 
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
-  const handleAddEmail = () => {
-    const email = emailInput.trim().toLowerCase();
-    if (!email || formData.participants.includes(email)) return;
-    setFormData((prev) => ({
-      ...prev,
-      participants: [...prev.participants, email]
-    }));
-    setEmailInput('');
-    toast.success('Participant ajouté');
+  const handleAddParticipant = () => {
+    if (participantEmail && !formData.participants.includes(participantEmail)) {
+      setFormData((prev) => ({
+        ...prev,
+        participants: [...prev.participants, participantEmail],
+      }));
+      setParticipantEmail("");
+    }
   };
 
-  const handleRemoveEmail = (email) => {
+  const handleRemoveParticipant = (email) => {
     setFormData((prev) => ({
       ...prev,
-      participants: prev.participants.filter((e) => e !== email)
+      participants: prev.participants.filter((p) => p !== email),
     }));
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+
     if (!formData.title || !formData.endDate || formData.participants.length === 0) {
       toast.error("Veuillez remplir les champs requis");
       return;
@@ -57,15 +60,33 @@ const CreateEventPage = () => {
     try {
       const event = await eventService.createEvent({
         ...formData,
-        userId: user?.id,
+        userId: user?.id, // ✅ toujours l’UUID, pas l’email
         videoDuration: parseInt(formData.videoDuration),
-        maxClipDuration: parseInt(formData.maxClipDuration)
+        maxClipDuration: parseInt(formData.maxClipDuration),
       });
-      await invitationService.addInvitations(event.id, formData.participants, '', event, user);
-      toast.success('Événement créé avec succès');
-      navigate('/dashboard');
+
+      // Invitations
+      await invitationService.addInvitations(
+        event.id,
+        formData.participants,
+        "",
+        event,
+        user
+      );
+
+      toast.success("Événement créé avec succès");
+
+      // ✅ Log d'activité
+      await activityService.logActivity(
+        event.id,
+        user?.id,
+        "created_event",
+        `${user?.email} a créé l'événement "${event.title}"`
+      );
+
+      navigate("/dashboard");
     } catch (err) {
-      console.error(err);
+      console.error("Erreur création événement:", err);
       toast.error("Erreur lors de la création");
     } finally {
       setLoading(false);
@@ -73,99 +94,107 @@ const CreateEventPage = () => {
   };
 
   return (
-    <MainLayout>
-      <div className="max-w-md mx-auto p-4 bg-white shadow-lg rounded-lg mt-6 mb-10">
-        <h2 className="text-xl sm:text-2xl font-semibold text-center text-gray-800 mb-4">
-          🎉 Créer un événement
-        </h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            name="title"
-            placeholder="Titre de l'événement *"
-            value={formData.title}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-md text-sm focus:ring"
-            required
-          />
+    <MainLayout> {/* ✅ enveloppe ajoutée */}
+      <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow">
+        <h1 className="text-2xl font-bold mb-6">Créer un événement</h1>
 
-          <textarea
-            name="description"
-            rows="2"
-            placeholder="Description"
-            value={formData.description}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-md text-sm focus:ring"
-          />
-
-          <input
-            type="text"
-            name="theme"
-            placeholder="Thème (optionnel)"
-            value={formData.theme}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-md text-sm focus:ring"
-          />
-
-          <input
-            type="date"
-            name="endDate"
-            value={formData.endDate}
-            onChange={handleChange}
-            className="w-full px-4 py-2 border rounded-md text-sm focus:ring"
-            required
-          />
-
-          <div className="grid grid-cols-2 gap-2">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Titre</label>
             <input
-              type="number"
-              name="videoDuration"
-              min="30"
-              max="300"
-              value={formData.videoDuration}
+              type="text"
+              name="title"
+              value={formData.title}
               onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="Durée finale"
-            />
-            <input
-              type="number"
-              name="maxClipDuration"
-              min="5"
-              max="30"
-              value={formData.maxClipDuration}
-              onChange={handleChange}
-              className="w-full px-3 py-2 border rounded-md text-sm"
-              placeholder="Clip max"
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
             />
           </div>
 
           <div>
-            <label className="block mb-1 text-sm font-medium">Participants *</label>
-            <div className="flex gap-2">
+            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Thème</label>
+            <input
+              type="text"
+              name="theme"
+              value={formData.theme}
+              onChange={handleChange}
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Durée vidéo finale (sec)
+              </label>
+              <input
+                type="number"
+                name="videoDuration"
+                value={formData.videoDuration}
+                onChange={handleChange}
+                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700">
+                Durée max d’un clip (sec)
+              </label>
+              <input
+                type="number"
+                name="maxClipDuration"
+                value={formData.maxClipDuration}
+                onChange={handleChange}
+                className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Date limite</label>
+            <input
+              type="date"
+              name="endDate"
+              value={formData.endDate}
+              onChange={handleChange}
+              required
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Participants</label>
+            <div className="flex space-x-2">
               <input
                 type="email"
-                value={emailInput}
-                onChange={(e) => setEmailInput(e.target.value)}
-                placeholder="email@exemple.com"
-                className="flex-1 px-3 py-2 border rounded-md text-sm"
+                value={participantEmail}
+                onChange={(e) => setParticipantEmail(e.target.value)}
+                placeholder="Email participant"
+                className="mt-1 flex-1 border-gray-300 rounded-md shadow-sm"
               />
-              <button
-                type="button"
-                onClick={handleAddEmail}
-                className="px-3 py-2 text-white bg-indigo-600 rounded-md text-sm hover:bg-indigo-700"
-              >
+              <Button type="button" onClick={handleAddParticipant}>
                 Ajouter
-              </button>
+              </Button>
             </div>
-            <ul className="mt-2 space-y-1 max-h-32 overflow-y-auto">
-              {formData.participants.map((email) => (
-                <li
-                  key={email}
-                  className="flex justify-between items-center bg-gray-100 px-3 py-1 rounded text-sm"
-                >
-                  <span>{email}</span>
-                  <button onClick={() => handleRemoveEmail(email)} className="text-red-600">
-                    ✖
+            <ul className="mt-2">
+              {formData.participants.map((p, idx) => (
+                <li key={idx} className="flex justify-between items-center">
+                  {p}
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveParticipant(p)}
+                    className="text-red-500 text-sm"
+                  >
+                    Supprimer
                   </button>
                 </li>
               ))}
@@ -173,8 +202,8 @@ const CreateEventPage = () => {
           </div>
 
           <div>
-            <Button type="submit" disabled={loading} loading={loading}>
-              {loading ? 'Création...' : 'Créer'}
+            <Button type="submit" loading={loading} className="w-full">
+              Créer l'événement
             </Button>
           </div>
         </form>

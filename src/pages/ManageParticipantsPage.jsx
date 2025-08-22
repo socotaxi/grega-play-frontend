@@ -181,9 +181,9 @@ const ManageParticipantsPage = () => {
         </div>
 
         <div className="flex justify-end">
-          <Link to={`/events/${eventId}/final`} className="mr-3">
-            <Button variant="secondary">Retour à l'événement</Button>
-          </Link>
+          <Link to={`/events/${eventId}`} className="mr-3">
+  <Button variant="secondary">Retour à l'événement</Button>
+</Link>
         </div>
       </div>
     </MainLayout>

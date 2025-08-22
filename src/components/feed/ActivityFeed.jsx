@@ -1,37 +1,55 @@
+import React, { useEffect, useState } from "react";
+import activityService from "../../services/activityService";
 
-import React, { useEffect, useState } from 'react';
-import activityService from '../../services/activityService';
-
-const ActivityFeed = ({ eventId }) => {
-  const [activities, setActivities] = useState([]);
+const ActivityFeed = ({ eventId, userId }) => {
+  const [feed, setFeed] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-  console.log("🎯 ActivityFeed monté pour l’event :", eventId);
-  const fetchActivities = async () => {
-    const data = await activityService.getActivityByEvent(eventId);
-    console.log("📄 Activités reçues :", data); // ← ici
-    setActivities(data);
-  };
-  fetchActivities();
-}, [eventId]);
+    const fetchFeed = async () => {
+      try {
+        let data = [];
+        if (eventId) {
+          data = await activityService.getEventFeed(eventId);
+        } else if (userId) {
+          data = await activityService.getUserFeed(userId);
+        }
+
+        setFeed(Array.isArray(data) ? data : []);
+      } catch (err) {
+        console.error("Erreur feed:", err);
+        setFeed([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    if (eventId || userId) {
+      fetchFeed();
+    }
+  }, [eventId, userId]);
+
+  if (loading) return <p>Chargement du fil d’activités…</p>;
 
   return (
-    <div className="bg-white p-4 rounded shadow mt-6">
-      <h3 className="text-lg font-semibold mb-3">📰 Fil d’actualités</h3>
-      {activities.length === 0 ? (
-        <p className="text-gray-500">Aucune actualité pour le moment.</p>
-      ) : (
-        <ul className="space-y-2">
-          {activities.map((item) => (
-            <li key={item.id} className="text-sm text-gray-800 border-b pb-1">
-              <span className="block">{item.message}</span>
-              <span className="text-xs text-gray-500">
+    <div className="p-4 bg-white rounded shadow mt-6">
+      <h2 className="text-lg font-bold mb-2">Fil d’activités</h2>
+      <ul>
+        {feed.length === 0 ? (
+          <li>Aucune activité pour l’instant.</li>
+        ) : (
+          feed.map((item) => (
+            <li key={item.id} className="mb-2 text-sm">
+              <strong>{item.user_full_name || item.user_email || "Utilisateur"}</strong>{" "}
+              : {item.message}
+              <br />
+              <span className="text-gray-500 text-xs">
                 {new Date(item.created_at).toLocaleString()}
               </span>
             </li>
-          ))}
-        </ul>
-      )}
+          ))
+        )}
+      </ul>
     </div>
   );
 };

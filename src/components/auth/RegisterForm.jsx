@@ -1,22 +1,20 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { toast } from 'react-toastify';
-import { useAuth } from '../../context/AuthContext';
-import supabase from '../../lib/supabaseClient';
-import Button from '../ui/Button';
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-toastify";
+import supabase from "../../lib/supabaseClient";
+import Button from "../ui/Button";
 
 const RegisterForm = () => {
-  const { register } = useAuth();
   const navigate = useNavigate();
   const [formData, setFormData] = useState({
-    firstName: '',
-    lastName: '',
-    birthDate: '',
-    country: '',
-    phone: '',
-    email: '',
-    password: '',
-    confirmPassword: '',
+    firstName: "",
+    lastName: "",
+    birthDate: "",
+    country: "",
+    phone: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
     acceptNews: false,
     acceptTerms: false,
   });
@@ -26,7 +24,7 @@ const RegisterForm = () => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: type === 'checkbox' ? checked : value,
+      [name]: type === "checkbox" ? checked : value,
     }));
   };
 
@@ -34,19 +32,23 @@ const RegisterForm = () => {
     e.preventDefault();
 
     if (formData.password !== formData.confirmPassword) {
-      toast.error('Les mots de passe ne correspondent pas');
+      toast.error("Les mots de passe ne correspondent pas");
       return;
     }
 
     if (!formData.acceptTerms) {
-      toast.error('Vous devez accepter les CGU et la politique de confidentialité');
+      toast.error(
+        "Vous devez accepter les CGU et la politique de confidentialité"
+      );
       return;
     }
 
     setLoading(true);
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`;
-      const { error } = await supabase.auth.signUp({
+
+      // Création dans auth.users
+      const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
@@ -62,8 +64,30 @@ const RegisterForm = () => {
 
       if (error) throw error;
 
-      toast.success('Inscription réussie ! Vérifiez vos emails pour confirmer.');
-      navigate('/login');
+      // ✅ Insertion dans ta table "users"
+      if (data?.user) {
+        const { error: userError } = await supabase.from("users").insert([
+          {
+            id: data.user.id, // correspond à auth.users.id
+            email: formData.email,
+            full_name: fullName,
+            birth_date: formData.birthDate,
+            country: formData.country,
+            phone: formData.phone,
+            accept_news: formData.acceptNews,
+          },
+        ]);
+
+        if (userError) {
+          console.error(
+            "Erreur lors de la création de l'utilisateur dans users:",
+            userError.message
+          );
+        }
+      }
+
+      toast.success("Inscription réussie ! Vérifiez vos emails pour confirmer.");
+      navigate("/check-email", { state: { email: formData.email } });
     } catch (err) {
       toast.error(err.message || "Erreur lors de l'inscription");
     } finally {
@@ -75,7 +99,9 @@ const RegisterForm = () => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Prénom</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Prénom
+          </label>
           <input
             type="text"
             name="firstName"
@@ -97,42 +123,48 @@ const RegisterForm = () => {
           />
         </div>
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700">Date de naissance</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Date de naissance
+        </label>
         <input
           type="date"
           name="birthDate"
-          required
           value={formData.birthDate}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
         />
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700">Pays de résidence</label>
+        <label className="block text-sm font-medium text-gray-700">Pays</label>
         <input
           type="text"
           name="country"
-          required
           value={formData.country}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
         />
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700">Téléphone portable</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Téléphone
+        </label>
         <input
-          type="tel"
+          type="text"
           name="phone"
-          required
           value={formData.phone}
           onChange={handleChange}
           className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
         />
-        <p className="mt-1 text-xs text-gray-500">Votre numéro de téléphone nous permet de sécuriser votre compte et vos transactions.</p>
       </div>
+
       <div>
-        <label className="block text-sm font-medium text-gray-700">Email</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Adresse e-mail
+        </label>
         <input
           type="email"
           name="email"
@@ -142,57 +174,60 @@ const RegisterForm = () => {
           className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
         />
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
-          <input
-            type="password"
-            name="password"
-            required
-            value={formData.password}
-            onChange={handleChange}
-            className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
-          <input
-            type="password"
-            name="confirmPassword"
-            required
-            value={formData.confirmPassword}
-            onChange={handleChange}
-            className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
-          />
-        </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Mot de passe
+        </label>
+        <input
+          type="password"
+          name="password"
+          required
+          value={formData.password}
+          onChange={handleChange}
+          className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
+        />
       </div>
 
-      <div className="space-y-2">
-        <div className="flex items-start">
-          <input
-            type="checkbox"
-            name="acceptNews"
-            checked={formData.acceptNews}
-            onChange={handleChange}
-            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-          />
-          <label className="ml-2 block text-sm text-gray-700">
-            J'accepte de recevoir des actualités, des promotions et des contenus personnalisés.
-          </label>
-        </div>
-        <div className="flex items-start">
-          <input
-            type="checkbox"
-            name="acceptTerms"
-            required
-            checked={formData.acceptTerms}
-            onChange={handleChange}
-            className="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded"
-          />
-          <label className="ml-2 block text-sm text-gray-700">
-            J’accepte les <a href="#" className="underline">CGU</a> de GregaPlay et la <a href="#" className="underline">politique de confidentialité</a>.
-          </label>
-        </div>
+      <div>
+        <label className="block text-sm font-medium text-gray-700">
+          Confirmer le mot de passe
+        </label>
+        <input
+          type="password"
+          name="confirmPassword"
+          required
+          value={formData.confirmPassword}
+          onChange={handleChange}
+          className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
+        />
+      </div>
+
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          name="acceptNews"
+          checked={formData.acceptNews}
+          onChange={handleChange}
+          className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+        />
+        <label className="ml-2 block text-sm text-gray-900">
+          Recevoir les actualités et offres
+        </label>
+      </div>
+
+      <div className="flex items-center">
+        <input
+          type="checkbox"
+          name="acceptTerms"
+          checked={formData.acceptTerms}
+          onChange={handleChange}
+          required
+          className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+        />
+        <label className="ml-2 block text-sm text-gray-900">
+          J’accepte les CGU et la politique de confidentialité
+        </label>
       </div>
 
       <div>
