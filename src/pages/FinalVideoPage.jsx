@@ -98,16 +98,14 @@ const FinalVideoPage = () => {
         });
       }, 300);
 
-      await videoService.generateFinalVideo(eventId);
+      // ⚡ Utiliser la réponse du backend corrigé
+      const result = await videoService.generateFinalVideo(eventId);
 
       clearInterval(timer);
       setGenerationProgress(100);
 
-      const updatedEvent = await eventService.getEvent(eventId);
-      setEvent(updatedEvent);
-
-      if (updatedEvent.final_video_url) {
-        setFinalVideo(updatedEvent.final_video_url);
+      if (result?.videoUrl) {
+        setFinalVideo(result.videoUrl);
 
         const creatorName =
           profile?.full_name && profile.full_name !== "User"
@@ -115,12 +113,12 @@ const FinalVideoPage = () => {
             : user?.email || "Un utilisateur";
 
         // ✅ Ajout au fil d’actualité
-        await activityService.logActivity(
-          eventId,
-          user.id,
-          "generated_final_video",
-          `${creatorName} a généré la vidéo finale de l'événement "${updatedEvent.title}" 🎬✅`
-        );
+        await activityService.logActivity({
+          event_id: eventId,
+          user_id: user.id,
+          type: "generated_final_video",
+          message: `${creatorName} a généré la vidéo finale de l'événement "${event.title}" 🎬✅`
+        });
       }
     } catch (err) {
       console.error('Error generating video:', err);

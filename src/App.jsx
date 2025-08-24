@@ -18,6 +18,8 @@ import FinalVideoPage from "./pages/FinalVideoPage";
 import ManageParticipantsPage from "./pages/ManageParticipantsPage";
 import CheckEmailPage from "./pages/CheckEmailPage";
 import EventDetailsPage from "./pages/EventDetailsPage";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage";
+import ResetPasswordPage from "./pages/ResetPasswordPage";
 
 
 // Layout
@@ -44,6 +46,8 @@ const App = () => {
         <Route path="/invitation/:token" element={<InvitationPage />} />
         <Route path="/check-email" element={<CheckEmailPage />} />
         <Route path="/events/:eventId" element={<EventDetailsPage />} />
+        <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+        <Route path="/reset-password" element={<ResetPasswordPage />} />
       </Routes>
     </>
   );

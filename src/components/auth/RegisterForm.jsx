@@ -37,56 +37,34 @@ const RegisterForm = () => {
     }
 
     if (!formData.acceptTerms) {
-      toast.error(
-        "Vous devez accepter les CGU et la politique de confidentialité"
-      );
+      toast.error("Vous devez accepter les CGU et la politique de confidentialité");
       return;
     }
 
     setLoading(true);
     try {
-      const fullName = `${formData.firstName} ${formData.lastName}`;
+      const fullName = `${formData.firstName} ${formData.lastName}`.trim();
 
-      // Création dans auth.users
+      // Création de l’utilisateur dans auth.users avec métadonnées
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
           data: {
-            full_name: fullName,
-            birth_date: formData.birthDate,
-            country: formData.country,
-            phone: formData.phone,
-            accept_news: formData.acceptNews,
+            first_name: formData.firstName || null,
+            last_name: formData.lastName || null,
+            full_name: fullName || null,
+            birth_date: formData.birthDate || null, // format YYYY-MM-DD
+            country: formData.country || null,
+            phone: formData.phone || null,
+            accept_news: formData.acceptNews ?? false,
           },
         },
       });
 
       if (error) throw error;
 
-      // ✅ Insertion dans ta table "users"
-      if (data?.user) {
-        const { error: userError } = await supabase.from("users").insert([
-          {
-            id: data.user.id, // correspond à auth.users.id
-            email: formData.email,
-            full_name: fullName,
-            birth_date: formData.birthDate,
-            country: formData.country,
-            phone: formData.phone,
-            accept_news: formData.acceptNews,
-          },
-        ]);
-
-        if (userError) {
-          console.error(
-            "Erreur lors de la création de l'utilisateur dans users:",
-            userError.message
-          );
-        }
-      }
-
-      toast.success("Inscription réussie ! Vérifiez vos emails pour confirmer.");
+      toast.success("Inscription réussie !");
       navigate("/check-email", { state: { email: formData.email } });
     } catch (err) {
       toast.error(err.message || "Erreur lors de l'inscription");
@@ -99,9 +77,7 @@ const RegisterForm = () => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">
-            Prénom
-          </label>
+          <label className="block text-sm font-medium text-gray-700">Prénom</label>
           <input
             type="text"
             name="firstName"
@@ -125,9 +101,7 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Date de naissance
-        </label>
+        <label className="block text-sm font-medium text-gray-700">Date de naissance</label>
         <input
           type="date"
           name="birthDate"
@@ -149,9 +123,7 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Téléphone
-        </label>
+        <label className="block text-sm font-medium text-gray-700">Téléphone</label>
         <input
           type="text"
           name="phone"
@@ -162,9 +134,7 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Adresse e-mail
-        </label>
+        <label className="block text-sm font-medium text-gray-700">Adresse e-mail</label>
         <input
           type="email"
           name="email"
@@ -176,9 +146,7 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Mot de passe
-        </label>
+        <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
         <input
           type="password"
           name="password"
@@ -190,9 +158,7 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">
-          Confirmer le mot de passe
-        </label>
+        <label className="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
         <input
           type="password"
           name="confirmPassword"
@@ -211,9 +177,7 @@ const RegisterForm = () => {
           onChange={handleChange}
           className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
         />
-        <label className="ml-2 block text-sm text-gray-900">
-          Recevoir les actualités et offres
-        </label>
+        <label className="ml-2 block text-sm text-gray-900">Recevoir les actualités et offres</label>
       </div>
 
       <div className="flex items-center">

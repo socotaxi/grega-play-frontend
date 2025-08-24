@@ -77,12 +77,12 @@ const CreateEventPage = () => {
       toast.success("Événement créé avec succès");
 
       // ✅ Log d'activité
-      await activityService.logActivity(
-        event.id,
-        user?.id,
-        "created_event",
-        `${user?.email} a créé l'événement "${event.title}"`
-      );
+      await activityService.logActivity({
+        event_id: event.id,
+        user_id: user?.id,
+        type: "created_event",
+        message: `${user?.email} a créé l'événement "${event.title}"`
+    });
 
       navigate("/dashboard");
     } catch (err) {

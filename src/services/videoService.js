@@ -17,10 +17,8 @@ const videoService = {
       // Génération d'un nom de fichier unique
       let fileName;
       if (file.name) {
-        // Cas d'un File ou Blob avec propriété name
         fileName = `${eventId}/${Date.now()}-${file.name}`;
       } else if (typeof file === "string") {
-        // Cas d'une URL ou d'un chemin
         fileName = `${eventId}/${Date.now()}-${file.split("/").pop()}`;
       } else {
         throw new Error("Format de fichier non supporté pour l'upload.");
@@ -39,7 +37,7 @@ const videoService = {
         .insert([
           {
             event_id: eventId,
-            user_id: userId, // ✅ on stocke bien l'UUID
+            user_id: userId,
             storage_path: fileName,
           },
         ])
@@ -78,16 +76,21 @@ const videoService = {
   /**
    * Supprime une vidéo (storage + DB)
    * @param {string} videoId - UUID de la vidéo
-   * @param {string} storagePath - chemin du fichier dans Supabase Storage
+   * @param {string} [storagePath] - chemin du fichier dans Supabase Storage (optionnel)
    */
-  async deleteVideo(videoId, storagePath) {
+  async deleteVideo(videoId, storagePath = null) {
     try {
-      // Supprime du storage
-      const { error: storageError } = await supabase.storage
-        .from("videos")
-        .remove([storagePath]);
+      // Si pas de storagePath fourni → le chercher en DB
+      if (!storagePath) {
+        const { data, error } = await supabase
+          .from("videos")
+          .select("storage_path")
+          .eq("id", videoId)
+          .single();
 
-      if (storageError) throw storageError;
+        if (error) throw error;
+        storagePath = data?.storage_path;
+      }
 
       // Supprime de la DB
       const { error: dbError } = await supabase
@@ -97,10 +100,18 @@ const videoService = {
 
       if (dbError) throw dbError;
 
-      return true;
+      // Supprime du storage (si on a bien le chemin)
+      if (storagePath) {
+        const { error: storageError } = await supabase.storage
+          .from("videos")
+          .remove([storagePath]);
+        if (storageError) throw storageError;
+      }
+
+      return { success: true };
     } catch (err) {
       console.error("Erreur deleteVideo:", err);
-      throw err;
+      return { success: false, error: err };
     }
   },
 

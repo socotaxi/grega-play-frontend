@@ -75,12 +75,12 @@ const InvitationPage = () => {
       if (success) {
         toast.success('Invitation acceptée avec succès !');
 
-await activityService.logActivity(
-  invitation.event_id,
-  user.id,
-  "accepted_invitation",
-  `${user.email} a rejoint l'événement 🎉`
-);
+await activityService.logActivity({
+event_id: invitation.event_id,
+user_id: user.id,
+type: "accepted_invitation",
+message: `${user.email} a rejoint l'événement 🎉`
+});
 
         navigate(`/events/${invitation.events.id}`);
       } else {
@@ -99,12 +99,12 @@ await activityService.logActivity(
       if (success) {
         toast.info('Invitation déclinée');
 
-await activityService.logActivity(
-  invitation.event_id,
-  user.id,
-  "declined_invitation",
-  `${user.email} a refusé l'invitation ❌`
-);
+await activityService.logActivity({
+event_id: invitation.event_id,
+user_id: user.id,
+type: "declined_invitation",
+message: `${user.email} a refusé l'invitation ❌`
+});
 
         setInvitation(prev => ({ ...prev, status: 'declined' }));
       } else {

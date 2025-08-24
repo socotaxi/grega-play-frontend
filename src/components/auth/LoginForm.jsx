@@ -68,6 +68,12 @@ const LoginForm = () => {
         >
           Se connecter
         </button>
+        <p className="mt-2 text-sm text-right">
+  <a href="/forgot-password" className="text-indigo-600 hover:text-indigo-800">
+    Mot de passe oublié ?
+  </a>
+</p>
+
       </form>
     </div>
   );
