@@ -26,7 +26,6 @@ const SubmitVideoPage = () => {
   const [existingVideo, setExistingVideo] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  // Nom affiché pour l’utilisateur (pas dans la BDD)
   const participantName =
     profile?.full_name && profile.full_name !== "User"
       ? profile.full_name
@@ -80,6 +79,7 @@ const SubmitVideoPage = () => {
     }
   }, [success, navigate, eventId]);
 
+  // ✅ Vérification de la durée max (10s)
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -89,9 +89,23 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    setSelectedFile(file);
-    setPreviewUrl(URL.createObjectURL(file));
-    setError(null);
+    const video = document.createElement("video");
+    video.preload = "metadata";
+    video.onloadedmetadata = () => {
+      window.URL.revokeObjectURL(video.src);
+
+      if (video.duration > 10) {
+        setError("⛔ La vidéo ne doit pas dépasser 10 secondes.");
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        e.target.value = null; // reset input
+      } else {
+        setSelectedFile(file);
+        setPreviewUrl(URL.createObjectURL(file));
+        setError(null);
+      }
+    };
+    video.src = URL.createObjectURL(file);
   };
 
   const handleDeleteVideo = async () => {
@@ -118,7 +132,6 @@ const SubmitVideoPage = () => {
     setUploadProgress(0);
 
     try {
-      // ⚡️ Correction : passer user.id (UUID) en user_id
       await videoService.uploadVideo(eventId, user.id, selectedFile);
 
       await activityService.logActivity({
