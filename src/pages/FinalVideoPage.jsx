@@ -55,7 +55,12 @@ const FinalVideoPage = () => {
         setEvent(eventData);
 
         if (eventData.status === 'done' && eventData.final_video_url) {
-          setFinalVideo(eventData.final_video_url);
+          // ✅ Sécurisation : gérer string ou objet
+          setFinalVideo(
+            typeof eventData.final_video_url === "string"
+              ? eventData.final_video_url
+              : eventData.final_video_url.videoUrl
+          );
         }
       } catch (err) {
         console.error('Error fetching event details:', err);
@@ -98,21 +103,24 @@ const FinalVideoPage = () => {
         });
       }, 300);
 
-      // ⚡ Utiliser la réponse du backend corrigé
       const result = await videoService.generateFinalVideo(eventId);
 
       clearInterval(timer);
       setGenerationProgress(100);
 
       if (result?.videoUrl) {
-        setFinalVideo(result.videoUrl);
+        // ✅ Sécurisation : gérer string ou objet
+        setFinalVideo(
+          typeof result.videoUrl === "string"
+            ? result.videoUrl
+            : result.videoUrl.videoUrl
+        );
 
         const creatorName =
           profile?.full_name && profile.full_name !== "User"
             ? profile.full_name
             : user?.email || "Un utilisateur";
 
-        // ✅ Ajout au fil d’actualité
         await activityService.logActivity({
           event_id: eventId,
           user_id: user.id,
