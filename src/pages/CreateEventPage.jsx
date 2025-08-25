@@ -51,10 +51,10 @@ const CreateEventPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    if (!formData.title || !formData.endDate || formData.participants.length === 0) {
-      toast.error("Veuillez remplir les champs requis");
-      return;
-    }
+    if (!formData.title || !formData.endDate) {
+  toast.error("Veuillez remplir les champs requis");
+  return;
+}
 
     setLoading(true);
     try {
