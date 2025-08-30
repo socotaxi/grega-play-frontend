@@ -8,6 +8,8 @@ import eventService from '../services/eventService';
 import videoService from '../services/videoService';
 import { useAuth } from '../context/AuthContext';
 import activityService from "../services/activityService";
+import supabase from "../lib/supabaseClient";   // ✅ pour realtime
+import { toast } from "react-toastify";        // ✅ pour notifications
 
 const SUPABASE_PROJECT_ID = 'cgqnrqbyvetcgwolkjvl.supabase.co';
 
@@ -46,7 +48,7 @@ const FinalVideoPage = () => {
     }
   }, [event, user, eventId, isOwner]);
 
-  // Charger détails de l'événement
+  // Charger détails de l'événement (initial uniquement)
   useEffect(() => {
     const fetchEventDetails = async () => {
       try {
@@ -55,12 +57,12 @@ const FinalVideoPage = () => {
         setEvent(eventData);
 
         if (eventData.status === 'done' && eventData.final_video_url) {
-          // ✅ Sécurisation : gérer string ou objet
-          setFinalVideo(
+          const baseUrl =
             typeof eventData.final_video_url === "string"
               ? eventData.final_video_url
-              : eventData.final_video_url.videoUrl
-          );
+              : eventData.final_video_url.videoUrl;
+          // ⚡️ Ajout d’un cache-buster initial
+          setFinalVideo(`${baseUrl}?t=${Date.now()}`);
         }
       } catch (err) {
         console.error('Error fetching event details:', err);
@@ -71,6 +73,42 @@ const FinalVideoPage = () => {
     };
 
     fetchEventDetails();
+  }, [eventId]);
+
+  // ✅ Supabase Realtime pour écouter les updates de l’événement
+  useEffect(() => {
+    if (!eventId) return;
+
+    const channel = supabase
+      .channel(`event-changes-${eventId}`)
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "events", filter: `id=eq.${eventId}` },
+        (payload) => {
+          console.log("📡 Realtime update reçu:", payload.new);
+          const updated = payload.new;
+          setEvent(updated);
+
+          if (updated.status === "processing") {
+            toast.info("⏳ Génération de la vidéo en cours...");
+          }
+
+          if (updated.status === "done" && updated.final_video_url) {
+            const baseUrl =
+              typeof updated.final_video_url === "string"
+                ? updated.final_video_url
+                : updated.final_video_url.videoUrl;
+            // ⚡️ Ajout d’un cache-buster aussi côté realtime
+            setFinalVideo(`${baseUrl}?t=${Date.now()}`);
+            toast.success("🎉 Vidéo finale générée !");
+          }
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [eventId]);
 
   // Suppression vidéo
@@ -85,7 +123,7 @@ const FinalVideoPage = () => {
     }
   };
 
-  // Génération vidéo finale
+  // Génération / Régénération vidéo finale
   const handleGenerateVideo = async () => {
     if (!event || !user) return;
 
@@ -103,34 +141,31 @@ const FinalVideoPage = () => {
         });
       }, 300);
 
-      const result = await videoService.generateFinalVideo(eventId);
+      const res = await videoService.generateFinalVideo(eventId);
 
       clearInterval(timer);
       setGenerationProgress(100);
 
-      if (result?.videoUrl) {
-        // ✅ Sécurisation : gérer string ou objet
-        setFinalVideo(
-          typeof result.videoUrl === "string"
-            ? result.videoUrl
-            : result.videoUrl.videoUrl
-        );
-
-        const creatorName =
-          profile?.full_name && profile.full_name !== "User"
-            ? profile.full_name
-            : user?.email || "Un utilisateur";
-
-        await activityService.logActivity({
-          event_id: eventId,
-          user_id: user.id,
-          type: "generated_final_video",
-          message: `${creatorName} a généré la vidéo finale de l'événement "${event.title}" 🎬✅`
-        });
+      // ⚡️ Ajout d’un cache-buster après régénération
+      if (res?.finalVideoUrl?.videoUrl) {
+        setFinalVideo(`${res.finalVideoUrl.videoUrl}?t=${Date.now()}`);
       }
+
+      const creatorName =
+        profile?.full_name && profile.full_name !== "User"
+          ? profile.full_name
+          : user?.email || "Un utilisateur";
+
+      await activityService.logActivity({
+        event_id: eventId,
+        user_id: user.id,
+        type: "generated_final_video",
+        message: `${creatorName} a (re)généré la vidéo finale de l'événement "${event.title}" 🎬✅`
+      });
     } catch (err) {
       console.error('Error generating video:', err);
       setError("Une erreur s'est produite lors de la génération de la vidéo.");
+      toast.error("❌ Erreur lors de la génération !");
     } finally {
       setProcessing(false);
     }
@@ -142,7 +177,7 @@ const FinalVideoPage = () => {
 
   const canStartProcessing =
     event &&
-    (event.status === 'ready' || event.status === 'open') &&
+    (event.status === 'ready' || event.status === 'open' || event.status === 'done') &&
     user &&
     (user.id === event.user_id || user.role === 'admin');
 
@@ -185,7 +220,7 @@ const FinalVideoPage = () => {
           {finalVideo && isOwner ? (
             <>
               <h3 className="text-lg font-medium text-gray-900">Vidéo finale</h3>
-              <div className="mt-4 aspect-w-16 aspect-h-9">
+              <div className="mt-4 aspect-w-9 aspect-h-16">
                 <video
                   controls
                   className="w-full h-auto rounded-md shadow-lg"
@@ -210,6 +245,11 @@ const FinalVideoPage = () => {
                 >
                   Partager sur WhatsApp
                 </a>
+              </div>
+              <div className="mt-5 text-center">
+                <Button onClick={handleGenerateVideo} loading={processing} disabled={processing}>
+                  🔄 Régénérer la vidéo
+                </Button>
               </div>
             </>
           ) : submittedVideos.length > 0 && canStartProcessing ? (
