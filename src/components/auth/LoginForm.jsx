@@ -9,6 +9,8 @@ const LoginForm = () => {
     email: '',
     password: '',
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -17,6 +19,7 @@ const LoginForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
     const { email, password } = formData;
 
@@ -32,11 +35,36 @@ const LoginForm = () => {
 
       if (!user?.confirmed_at) {
         toast.error('⚠️ Veuillez d’abord valider votre adresse email.');
+        setIsSubmitting(false);
         return;
       }
 
       toast.success('✅ Connexion réussie');
       navigate('/dashboard');
+    }
+
+    setIsSubmitting(false);
+  };
+
+  const handleGoogleSignIn = async () => {
+    try {
+      setIsGoogleLoading(true);
+      toast.info('Redirection vers Google…');
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: 'google',
+        options: {
+          redirectTo: `${window.location.origin}/dashboard`,
+        },
+      });
+
+      if (error) {
+        toast.error("Impossible d'ouvrir la fenêtre de connexion Google");
+      }
+    } catch (err) {
+      console.error('Erreur OAuth Google:', err);
+      toast.error('Une erreur est survenue avec Google.');
+    } finally {
+      setIsGoogleLoading(false);
     }
   };
 
@@ -64,16 +92,30 @@ const LoginForm = () => {
         />
         <button
           type="submit"
-          className="w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700"
+          disabled={isSubmitting}
+          className="w-full bg-indigo-600 text-white p-2 rounded hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          Se connecter
+          {isSubmitting ? 'Connexion…' : 'Se connecter'}
         </button>
         <p className="mt-2 text-sm text-right">
   <a href="/forgot-password" className="text-indigo-600 hover:text-indigo-800">
     Mot de passe oublié ?
   </a>
 </p>
-
+        <div className="flex items-center gap-2 text-sm text-gray-500 pt-2">
+          <span className="flex-1 border-t" />
+          ou
+          <span className="flex-1 border-t" />
+        </div>
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={isGoogleLoading}
+          className="w-full border border-gray-300 text-gray-700 p-2 rounded hover:bg-gray-50 flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <span role="img" aria-hidden="true">🔐</span>
+          {isGoogleLoading ? 'Connexion à Google…' : 'Continuer avec Google'}
+        </button>
       </form>
     </div>
   );
