@@ -84,6 +84,24 @@ const DashboardPage = () => {
     const options = { year: 'numeric', month: 'short', day: 'numeric' };
     return new Date(dateString).toLocaleDateString('fr-FR', options);
   }, []);
+
+  // ✅ AJOUT : fonction pour détecter une deadline dépassée
+  const isEventExpired = useCallback((event) => {
+    if (!event?.deadline) return false;
+
+    const now = new Date();
+    const deadline = new Date(event.deadline);
+
+    // On considère l'évènement expiré après la fin de la journée de la deadline
+    deadline.setHours(23, 59, 59, 999);
+
+    // Un évènement terminé/annulé ne doit pas être marqué "expiré"
+    if (event.status === 'done' || event.status === 'canceled') {
+      return false;
+    }
+
+    return deadline < now;
+  }, []);
   
   const sortedEvents = useMemo(() => {
     return [...events].sort((a, b) => {
@@ -148,14 +166,78 @@ const DashboardPage = () => {
             {sortedEvents.map((event) => {
               const status = getStatusInfo(event.status);
               return (
-                <div key={event.id} className="bg-white shadow rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between">
+                <div
+                  key={event.id}
+                  className="bg-white shadow rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
+                >
                   <div>
                     <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
                     <p className="text-sm text-gray-500">{formatDate(event.created_at)}</p>
+
                     <span className={`inline-block mt-2 px-2 py-1 text-xs font-medium rounded ${status.color}`}>
                       {status.label}
                     </span>
+
+                    {/* ✅ AJOUT : Badge "Expiré" */}
+                    {isEventExpired(event) && (
+                      <span className="inline-block ml-2 mt-2 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800">
+                        Expiré
+                      </span>
+                    )}
+
+                    {/* ───────────────────────────────────────────── */}
+                    {/*                Lien public + WhatsApp         */}
+                    {/* ───────────────────────────────────────────── */}
+
+                    {event.public_code && (
+                      <div className="mt-3">
+                        <label className="block text-xs font-medium text-gray-500 mb-1">
+                          Lien de partage
+                        </label>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                          <div className="flex-1 flex items-center gap-2">
+                            <input
+                              type="text"
+                              readOnly
+                              value={`${window.location.origin}/e/${event.public_code}`}
+                              className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-700"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const shareUrl = `${window.location.origin}/e/${event.public_code}`;
+                                navigator.clipboard
+                                  .writeText(shareUrl)
+                                  .then(() => {
+                                    toast.success('Lien copié dans le presse-papiers');
+                                  })
+                                  .catch(() => {
+                                    toast.error('Impossible de copier le lien');
+                                  });
+                              }}
+                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
+                            >
+                              Copier
+                            </button>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const shareUrl = `${window.location.origin}/e/${event.public_code}`;
+                              const message = `Participe à mon événement Grega Play : ${shareUrl}`;
+                              const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+                              window.open(whatsappUrl, "_blank");
+                            }}
+                            className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
+                          >
+                            Partager sur WhatsApp
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
+
                   <div className="mt-3 sm:mt-0 flex space-x-2">
                     {event.user_id === user.id && (
                       <Link
@@ -165,12 +247,12 @@ const DashboardPage = () => {
                         Inviter
                       </Link>
                     )}
-                      <Link
-                          to={`/events/${event.id}/final`}
-                        className="inline-flex items-center px-3 py-2 border border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-sm font-medium rounded-lg"
-                      >
-                        Voir
-                      </Link>
+                    <Link
+                      to={`/events/${event.id}/final`}
+                      className="inline-flex items-center px-3 py-2 border border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-sm font-medium rounded-lg"
+                    >
+                      Voir
+                    </Link>
 
                     <button
                       onClick={() => handleDeleteEvent(event.id)}

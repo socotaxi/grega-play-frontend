@@ -8,8 +8,8 @@ import eventService from '../services/eventService';
 import videoService from '../services/videoService';
 import { useAuth } from '../context/AuthContext';
 import activityService from "../services/activityService";
-import supabase from "../lib/supabaseClient";   // ✅ pour realtime
-import { toast } from "react-toastify";        // ✅ pour notifications
+import supabase from "../lib/supabaseClient";
+import { toast } from "react-toastify";
 
 const SUPABASE_PROJECT_ID = 'cgqnrqbyvetcgwolkjvl.supabase.co';
 
@@ -48,7 +48,7 @@ const FinalVideoPage = () => {
     }
   }, [event, user, eventId, isOwner]);
 
-  // Charger détails de l'événement (initial uniquement)
+  // Charger détails de l'événement
   useEffect(() => {
     const fetchEventDetails = async () => {
       try {
@@ -61,7 +61,7 @@ const FinalVideoPage = () => {
             typeof eventData.final_video_url === "string"
               ? eventData.final_video_url
               : eventData.final_video_url.videoUrl;
-          // ⚡️ Ajout d’un cache-buster initial
+
           setFinalVideo(`${baseUrl}?t=${Date.now()}`);
         }
       } catch (err) {
@@ -75,7 +75,7 @@ const FinalVideoPage = () => {
     fetchEventDetails();
   }, [eventId]);
 
-  // ✅ Supabase Realtime pour écouter les updates de l’événement
+  // Realtime Supabase pour suivre les updates de l'événement
   useEffect(() => {
     if (!eventId) return;
 
@@ -98,8 +98,10 @@ const FinalVideoPage = () => {
               typeof updated.final_video_url === "string"
                 ? updated.final_video_url
                 : updated.final_video_url.videoUrl;
-            // ⚡️ Ajout d’un cache-buster aussi côté realtime
+
             setFinalVideo(`${baseUrl}?t=${Date.now()}`);
+            setGenerationProgress(100);
+            setProcessing(false);
             toast.success("🎉 Vidéo finale générée !");
           }
         }
@@ -111,7 +113,61 @@ const FinalVideoPage = () => {
     };
   }, [eventId]);
 
-  // Suppression vidéo
+  // Polling de secours quand l'événement est en "processing"
+  useEffect(() => {
+    if (!eventId) return;
+    if (event?.status !== 'processing') return;
+
+    let isCancelled = false;
+    let attempts = 0;
+    const maxAttempts = 45;
+
+    const pollEvent = async () => {
+      if (isCancelled) return;
+      attempts += 1;
+
+      try {
+        const updatedEvent = await eventService.getEvent(eventId);
+        if (isCancelled) return;
+
+        setEvent(updatedEvent);
+
+        if (updatedEvent.status === 'done' && updatedEvent.final_video_url) {
+          const baseUrl =
+            typeof updatedEvent.final_video_url === 'string'
+              ? updatedEvent.final_video_url
+              : updatedEvent.final_video_url.videoUrl;
+
+          setFinalVideo(`${baseUrl}?t=${Date.now()}`);
+          setGenerationProgress(100);
+          setProcessing(false);
+          toast.success("🎉 Vidéo finale générée !");
+          return;
+        }
+
+        if (updatedEvent.status === 'processing' && attempts < maxAttempts) {
+          setTimeout(pollEvent, 5000);
+        } else if (updatedEvent.status !== 'processing') {
+          setProcessing(false);
+        } else {
+          setProcessing(false);
+          toast.error("Le montage prend plus de temps que prévu. Actualisez la page dans quelques minutes.");
+        }
+      } catch (err) {
+        if (isCancelled) return;
+        console.error("Erreur lors du polling de l'événement:", err);
+        setProcessing(false);
+        toast.error("Erreur lors du suivi de la génération de la vidéo.");
+      }
+    };
+
+    pollEvent();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [event?.status, eventId]);
+
   const handleDeleteVideo = async (videoId) => {
     if (!window.confirm("Supprimer cette vidéo ?")) return;
     try {
@@ -123,15 +179,18 @@ const FinalVideoPage = () => {
     }
   };
 
-  // Génération / Régénération vidéo finale
   const handleGenerateVideo = async () => {
     if (!event || !user) return;
 
+    let timer;
     try {
+      setError(null);
       setProcessing(true);
       setGenerationProgress(0);
 
-      const timer = setInterval(() => {
+      setEvent(prev => prev ? { ...prev, status: 'processing' } : prev);
+
+      timer = setInterval(() => {
         setGenerationProgress((prev) => {
           if (prev >= 90) {
             clearInterval(timer);
@@ -143,12 +202,15 @@ const FinalVideoPage = () => {
 
       const res = await videoService.generateFinalVideo(eventId);
 
-      clearInterval(timer);
-      setGenerationProgress(100);
+      if (timer) clearInterval(timer);
+      setGenerationProgress((prev) => (prev < 90 ? 90 : prev));
 
-      // ⚡️ Ajout d’un cache-buster après régénération
       if (res?.finalVideoUrl?.videoUrl) {
-        setFinalVideo(`${res.finalVideoUrl.videoUrl}?t=${Date.now()}`);
+        const url = `${res.finalVideoUrl.videoUrl}?t=${Date.now()}`;
+        setFinalVideo(url);
+        setGenerationProgress(100);
+        setProcessing(false);
+        toast.success("🎉 Vidéo finale générée !");
       }
 
       const creatorName =
@@ -164,10 +226,11 @@ const FinalVideoPage = () => {
       });
     } catch (err) {
       console.error('Error generating video:', err);
+      if (timer) clearInterval(timer);
+      setProcessing(false);
+      setGenerationProgress(0);
       setError("Une erreur s'est produite lors de la génération de la vidéo.");
       toast.error("❌ Erreur lors de la génération !");
-    } finally {
-      setProcessing(false);
     }
   };
 
@@ -261,7 +324,7 @@ const FinalVideoPage = () => {
                   Générer la vidéo
                 </Button>
               </div>
-              {generationProgress > 0 && processing && (
+              {generationProgress > 0 && (
                 <div className="w-full bg-gray-200 rounded-full h-4 mt-4">
                   <div
                     className="bg-indigo-600 h-4 rounded-full transition-all duration-200 ease-out"
@@ -291,8 +354,22 @@ const FinalVideoPage = () => {
                     controls
                     className="w-full h-auto rounded"
                   />
-                  <p className="mt-2 text-sm text-gray-700 text-center truncate">
-                    {video.participant_name}
+                  {/* Auteur de la vidéo */}
+                  <p className="mt-2 text-sm font-semibold text-gray-900 text-center truncate">
+                    {video.participant_name || "Auteur inconnu"}
+                  </p>
+                  {/* Date de partage */}
+                  <p className="mt-1 text-xs text-gray-500 text-center">
+                    Partagée le{" "}
+                    {video.created_at
+                      ? new Date(video.created_at).toLocaleString("fr-FR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })
+                      : "date inconnue"}
                   </p>
 
                   {(isOwner || video.user_id === user?.id) && (

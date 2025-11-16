@@ -9,6 +9,17 @@ import activityService from "../services/activityService";
 import Button from "../components/ui/Button";
 import MainLayout from "../layout/MainLayout"; // ✅ ajout import
 
+// ✅ Génère un code public unique pour le lien partageable
+const generatePublicCode = (length = 12) => {
+  const chars =
+    "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+  let code = "";
+  for (let i = 0; i < length; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+};
+
 const CreateEventPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -52,9 +63,12 @@ const CreateEventPage = () => {
     e.preventDefault();
 
     if (!formData.title || !formData.endDate) {
-  toast.error("Veuillez remplir les champs requis");
-  return;
-}
+      toast.error("Veuillez remplir les champs requis");
+      return;
+    }
+
+    // ✅ Générer le code public ici
+    const publicCode = generatePublicCode();
 
     setLoading(true);
     try {
@@ -63,6 +77,8 @@ const CreateEventPage = () => {
         userId: user?.id, // ✅ toujours l’UUID, pas l’email
         videoDuration: parseInt(formData.videoDuration),
         maxClipDuration: parseInt(formData.maxClipDuration),
+        // ✅ On envoie le code public vers Supabase
+        public_code: publicCode,
       });
 
       // Invitations
@@ -81,8 +97,8 @@ const CreateEventPage = () => {
         event_id: event.id,
         user_id: user?.id,
         type: "created_event",
-        message: `${user?.email} a créé l'événement "${event.title}"`
-    });
+        message: `${user?.email} a créé l'événement "${event.title}"`,
+      });
 
       navigate("/dashboard");
     } catch (err) {
@@ -94,13 +110,16 @@ const CreateEventPage = () => {
   };
 
   return (
-    <MainLayout> {/* ✅ enveloppe ajoutée */}
+    <MainLayout>
+      {/* ✅ enveloppe ajoutée */}
       <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow">
         <h1 className="text-2xl font-bold mb-6">Créer un événement</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Titre</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Titre
+            </label>
             <input
               type="text"
               name="title"
@@ -112,7 +131,9 @@ const CreateEventPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Description</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Description
+            </label>
             <textarea
               name="description"
               value={formData.description}
@@ -122,7 +143,9 @@ const CreateEventPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Thème</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Thème
+            </label>
             <input
               type="text"
               name="theme"
@@ -160,7 +183,9 @@ const CreateEventPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Date limite</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Date limite
+            </label>
             <input
               type="date"
               name="endDate"
@@ -172,7 +197,9 @@ const CreateEventPage = () => {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Participants</label>
+            <label className="block text-sm font-medium text-gray-700">
+              Participants
+            </label>
             <div className="flex space-x-2">
               <input
                 type="email"

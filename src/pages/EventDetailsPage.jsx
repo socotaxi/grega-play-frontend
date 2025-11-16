@@ -82,6 +82,56 @@ const EventDetailsPage = () => {
           <p className="mt-2 text-sm text-gray-400">
             Créé le {new Date(event.created_at).toLocaleDateString("fr-FR")}
           </p>
+          {/* Lien de partage public */}
+{event.public_code && (
+  <div className="mt-4">
+    <label className="block text-xs font-medium text-gray-500 mb-1">
+      Lien de partage
+    </label>
+    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+      <div className="flex-1 flex items-center gap-2">
+        <input
+          type="text"
+          readOnly
+          value={`${window.location.origin}/e/${event.public_code}`}
+          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-700"
+        />
+        <button
+          type="button"
+          onClick={() => {
+            const shareUrl = `${window.location.origin}/e/${event.public_code}`;
+            navigator.clipboard
+              .writeText(shareUrl)
+              .then(() => {
+                toast.success("Lien copié dans le presse-papiers");
+              })
+              .catch(() => {
+                toast.error("Impossible de copier le lien");
+              });
+          }}
+          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
+        >
+          Copier
+        </button>
+      </div>
+
+      {/* Bouton WhatsApp */}
+      <button
+        type="button"
+        onClick={() => {
+          const shareUrl = `${window.location.origin}/e/${event.public_code}`;
+          const message = `Participe à mon événement Grega Play : ${shareUrl}`;
+          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
+          window.open(whatsappUrl, "_blank");
+        }}
+        className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
+      >
+        Partager sur WhatsApp
+      </button>
+    </div>
+  </div>
+)}
+
         </div>
 
         {/* Actions principales */}

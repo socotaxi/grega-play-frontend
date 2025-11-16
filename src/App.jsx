@@ -20,6 +20,7 @@ import CheckEmailPage from "./pages/CheckEmailPage";
 import EventDetailsPage from "./pages/EventDetailsPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
+import PublicEventPage from "./pages/PublicEventPage";
 
 
 // Layout
@@ -48,6 +49,7 @@ const App = () => {
         <Route path="/events/:eventId" element={<EventDetailsPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
+        <Route path="/e/:publicCode" element={<PublicEventPage />} />
       </Routes>
     </>
   );

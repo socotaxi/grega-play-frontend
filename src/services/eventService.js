@@ -21,7 +21,7 @@ const eventService = {
   async getEventById(eventId) {
     const { data, error } = await supabase
       .from('events')
-      .select(`
+            .select(`
         id,
         title,
         description,
@@ -30,7 +30,8 @@ const eventService = {
         video_duration,
         max_clip_duration,
         user_id,
-        created_at
+        created_at,
+        public_code
       `)
       .eq('id', eventId)
       .single();
@@ -57,7 +58,17 @@ const eventService = {
   },
 
   // ✅ Créer un event
-  async createEvent({ title, description, theme, endDate, videoDuration, maxClipDuration, userId }) {
+  // ⬇⬇⬇ MODIF ICI : on ajoute public_code dans la signature et l'insert
+  async createEvent({
+    title,
+    description,
+    theme,
+    endDate,
+    videoDuration,
+    maxClipDuration,
+    userId,
+    public_code,        // ✅ on récupère bien public_code depuis le payload
+  }) {
     const { data, error } = await supabase
       .from('events')
       .insert([
@@ -68,8 +79,9 @@ const eventService = {
           deadline: endDate,
           video_duration: videoDuration,
           max_clip_duration: maxClipDuration,
-          user_id: userId
-        }
+          user_id: userId,
+          public_code: public_code,   // ✅ on l'enregistre dans la colonne Supabase
+        },
       ])
       .select()
       .single();

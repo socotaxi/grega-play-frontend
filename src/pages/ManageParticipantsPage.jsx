@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
 import MainLayout from '../components/layout/MainLayout';
@@ -7,7 +7,6 @@ import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import invitationService from '../services/invitationService';
-
 
 const ManageParticipantsPage = () => {
   const { eventId } = useParams();
@@ -22,6 +21,26 @@ const ManageParticipantsPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState(null);
   const [invitations, setInvitations] = useState([]);
+
+  // ✅ Détection expiration (deadline dépassée)
+  const isEventExpired = useCallback((evt) => {
+    if (!evt?.deadline) return false;
+
+    const now = new Date();
+    const deadline = new Date(evt.deadline);
+
+    // On considère l'évènement expiré après la fin de la journée de la deadline
+    deadline.setHours(23, 59, 59, 999);
+
+    return deadline < now;
+  }, []);
+
+  // ✅ Invitations fermées si terminé, annulé ou expiré
+  const isInvitationClosed = event
+    ? event.status === 'done' ||
+      event.status === 'canceled' ||
+      isEventExpired(event)
+    : false;
 
   useEffect(() => {
     const fetchData = async () => {
@@ -51,6 +70,13 @@ const ManageParticipantsPage = () => {
 
   const handleInvite = async (e) => {
     e.preventDefault();
+
+    // ✅ Blocage logique : invitations fermées
+    if (isInvitationClosed) {
+      toast.error("Les invitations sont closes pour cet événement (terminé ou expiré).");
+      return;
+    }
+
     const emailList = emails
       .split(/[,\n]+/)
       .map((email) => email.trim())
@@ -76,7 +102,6 @@ const ManageParticipantsPage = () => {
     }
   };
 
-  
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -96,7 +121,6 @@ const ManageParticipantsPage = () => {
 
     fetchData();
   }, [eventId]);
-
 
   if (loading) {
     return (
@@ -148,7 +172,20 @@ const ManageParticipantsPage = () => {
         <div className="bg-white shadow sm:rounded-lg mb-6">
           <form onSubmit={handleInvite}>
             <div className="px-4 py-5 sm:p-6">
-              <h2 className="text-lg font-medium text-gray-900 mb-4">Inviter de nouveaux participants</h2>
+              <h2 className="text-lg font-medium text-gray-900 mb-4">
+                Inviter de nouveaux participants
+              </h2>
+
+              {/* ✅ Message d'info si invitations closes */}
+              {isInvitationClosed && (
+                <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded text-sm">
+                  Les invitations sont closes pour cet événement
+                  {event?.status === 'done' && ' (événement terminé).'}
+                  {event?.status === 'canceled' && ' (événement annulé).'}
+                  {isEventExpired(event) && event?.status !== 'done' && event?.status !== 'canceled' && ' (date limite dépassée).'}
+                </div>
+              )}
+
               <div className="mb-4">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   Emails (séparés par des virgules ou des retours à la ligne)
@@ -157,7 +194,8 @@ const ManageParticipantsPage = () => {
                   value={emails}
                   onChange={(e) => setEmails(e.target.value)}
                   rows={3}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  disabled={isInvitationClosed}
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
                 ></textarea>
               </div>
               <div className="mb-4">
@@ -168,12 +206,19 @@ const ManageParticipantsPage = () => {
                   value={message}
                   onChange={(e) => setMessage(e.target.value)}
                   rows={2}
-                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md"
+                  disabled={isInvitationClosed}
+                  className="shadow-sm focus:ring-indigo-500 focus:border-indigo-500 block w-full sm:text-sm border-gray-300 rounded-md disabled:bg-gray-100 disabled:text-gray-400"
                 ></textarea>
               </div>
               <div className="flex justify-end">
-                <Button type="submit" loading={sending} disabled={sending}>
-                  Envoyer les invitations
+                <Button
+                  type="submit"
+                  loading={sending}
+                  disabled={sending || isInvitationClosed}
+                >
+                  {isInvitationClosed
+                    ? "Invitations closes"
+                    : "Envoyer les invitations"}
                 </Button>
               </div>
             </div>
@@ -182,8 +227,8 @@ const ManageParticipantsPage = () => {
 
         <div className="flex justify-end">
           <Link to={`/events/${eventId}`} className="mr-3">
-  <Button variant="secondary">Retour à l'événement</Button>
-</Link>
+            <Button variant="secondary">Retour à l'événement</Button>
+          </Link>
         </div>
       </div>
     </MainLayout>

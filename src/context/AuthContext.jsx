@@ -28,7 +28,7 @@ export const AuthProvider = ({ children }) => {
     return () => listener?.subscription?.unsubscribe();
   }, []);
 
-  const login = async (email, password) => {
+     const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
@@ -37,6 +37,24 @@ export const AuthProvider = ({ children }) => {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
   };
+
+  const loginWithGoogle = async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: `${window.location.origin}/dashboard` },
+  });
+  if (error) throw error;
+};
+
+const loginWithFacebook = async () => {
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "facebook",
+    options: {
+      redirectTo: `${window.location.origin}/dashboard`,
+    },
+  });
+  if (error) throw error;
+};
 
   const logout = async () => {
     try {
@@ -48,7 +66,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const value = { user, session, login, signup, logout, loading };
+  const value = { user, session, login, signup, loginWithGoogle, loginWithFacebook, logout, loading };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
