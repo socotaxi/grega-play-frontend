@@ -9,22 +9,26 @@ import activityService from "../services/activityService";
 import Button from "../components/ui/Button";
 import MainLayout from "../layout/MainLayout"; // ✅ ajout import
 
+const initialFormData = {
+  title: "",
+  description: "",
+  theme: "",
+  videoDuration: 30,
+  maxClipDuration: 30,
+  endDate: "",
+  participants: [],
+};
+
 const CreateEventPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  const [formData, setFormData] = useState({
-    title: "",
-    description: "",
-    theme: "",
-    videoDuration: 30,
-    maxClipDuration: 30,
-    endDate: "",
-    participants: [],
-  });
-
+  const [formData, setFormData] = useState(initialFormData);
   const [loading, setLoading] = useState(false);
   const [participantEmail, setParticipantEmail] = useState("");
+  const [shareLink, setShareLink] = useState("");
+  const [createdEventId, setCreatedEventId] = useState(null);
+  const [copyingLink, setCopyingLink] = useState(false);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -52,9 +56,9 @@ const CreateEventPage = () => {
     e.preventDefault();
 
     if (!formData.title || !formData.endDate) {
-  toast.error("Veuillez remplir les champs requis");
-  return;
-}
+      toast.error("Veuillez remplir les champs requis");
+      return;
+    }
 
     setLoading(true);
     try {
@@ -82,9 +86,13 @@ const CreateEventPage = () => {
         user_id: user?.id,
         type: "created_event",
         message: `${user?.email} a créé l'événement "${event.title}"`
-    });
+      });
 
-      navigate("/dashboard");
+      const newShareLink = `${window.location.origin}/events/${event.id}`;
+      setShareLink(newShareLink);
+      setCreatedEventId(event.id);
+      setFormData(initialFormData);
+      setParticipantEmail("");
     } catch (err) {
       console.error("Erreur création événement:", err);
       toast.error("Erreur lors de la création");
@@ -93,9 +101,72 @@ const CreateEventPage = () => {
     }
   };
 
+  const handleCopyShareLink = async () => {
+    if (!shareLink) return;
+    try {
+      setCopyingLink(true);
+      await navigator.clipboard.writeText(shareLink);
+      toast.success("Lien de partage copié");
+    } catch (error) {
+      console.error("Impossible de copier le lien", error);
+      toast.error("Impossible de copier le lien");
+    } finally {
+      setCopyingLink(false);
+    }
+  };
+
   return (
     <MainLayout> {/* ✅ enveloppe ajoutée */}
       <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow">
+        {shareLink && (
+          <div className="mb-6 bg-indigo-50 border border-indigo-200 rounded-lg p-4 space-y-4">
+            <div>
+              <h2 className="text-lg font-semibold text-indigo-900">Lien de partage créé 🎉</h2>
+              <p className="text-sm text-indigo-800">
+                Partagez ce lien pour permettre à vos invités de consulter la page de l’événement.
+              </p>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <input
+                type="text"
+                value={shareLink}
+                readOnly
+                className="flex-1 border border-indigo-300 rounded-md px-3 py-2 text-sm bg-white"
+              />
+              <Button
+                type="button"
+                onClick={handleCopyShareLink}
+                loading={copyingLink}
+                className="w-full sm:w-auto justify-center"
+              >
+                Copier le lien
+              </Button>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              {createdEventId && (
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => navigate(`/events/${createdEventId}`)}
+                  className="w-full sm:w-auto justify-center"
+                >
+                  Voir l’événement
+                </Button>
+              )}
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => navigate("/dashboard")}
+                className="w-full sm:w-auto justify-center"
+              >
+                Aller au tableau de bord
+              </Button>
+            </div>
+            <p className="text-xs text-indigo-700">
+              Toute personne disposant de ce lien peut consulter la page, mais seule une personne connectée peut y participer.
+            </p>
+          </div>
+        )}
         <h1 className="text-2xl font-bold mb-6">Créer un événement</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">

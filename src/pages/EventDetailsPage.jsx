@@ -16,6 +16,7 @@ const EventDetailsPage = () => {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [copyingLink, setCopyingLink] = useState(false);
 
   const fetchEvent = useCallback(async () => {
     try {
@@ -50,6 +51,20 @@ const EventDetailsPage = () => {
     }
   };
 
+  const handleCopyShareLink = async () => {
+    if (!event) return;
+    try {
+      setCopyingLink(true);
+      await navigator.clipboard.writeText(`${window.location.origin}/events/${event.id}`);
+      toast.success("Lien copié dans le presse-papiers");
+    } catch (error) {
+      console.error("Impossible de copier le lien", error);
+      toast.error("Impossible de copier le lien");
+    } finally {
+      setCopyingLink(false);
+    }
+  };
+
   if (loading) {
     return (
       <MainLayout>
@@ -71,6 +86,8 @@ const EventDetailsPage = () => {
   }
 
   const isOwner = event.user_id === user?.id;
+  const isAuthenticated = Boolean(user);
+  const shareUrl = `${window.location.origin}/events/${event.id}`;
 
   return (
     <MainLayout>
@@ -86,12 +103,22 @@ const EventDetailsPage = () => {
 
         {/* Actions principales */}
         <div className="bg-white shadow rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-3 sm:space-y-0 sm:space-x-2">
-          <Link
-            to={`/submit-video/${event.id}`}
-            className="w-full sm:w-auto inline-flex justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg shadow hover:bg-indigo-700"
-          >
-            📤 Soumettre une vidéo
-          </Link>
+          {isAuthenticated ? (
+            <Link
+              to={`/submit-video/${event.id}`}
+              className="w-full sm:w-auto inline-flex justify-center px-4 py-2 bg-indigo-600 text-white text-sm font-medium rounded-lg shadow hover:bg-indigo-700"
+            >
+              📤 Soumettre une vidéo
+            </Link>
+          ) : (
+            <button
+              type="button"
+              disabled
+              className="w-full sm:w-auto inline-flex justify-center px-4 py-2 bg-gray-200 text-gray-600 text-sm font-medium rounded-lg shadow cursor-not-allowed"
+            >
+              🔒 Connectez-vous pour participer
+            </button>
+          )}
 
           {isOwner && (
             <Link
@@ -119,6 +146,35 @@ const EventDetailsPage = () => {
               {generating ? "⏳ Génération..." : "🎬 Générer la vidéo finale"}
             </button>
           )}
+        </div>
+
+        {!isAuthenticated && (
+          <p className="text-sm text-gray-600 bg-yellow-50 border border-yellow-200 rounded-lg p-3">
+            Ce lien permet à tout le monde de consulter l’événement, mais il faut être connecté pour envoyer une vidéo.
+          </p>
+        )}
+
+        <div className="bg-white shadow rounded-lg p-6 space-y-3">
+          <h2 className="text-lg font-semibold text-gray-900">Partager l’événement</h2>
+          <p className="text-sm text-gray-600">
+            Toute personne disposant de ce lien peut consulter la page de l’événement.
+          </p>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <input
+              type="text"
+              value={shareUrl}
+              readOnly
+              className="flex-1 border border-gray-200 rounded-md px-3 py-2 text-sm"
+            />
+            <Button
+              type="button"
+              onClick={handleCopyShareLink}
+              loading={copyingLink}
+              className="w-full sm:w-auto justify-center"
+            >
+              Copier le lien
+            </Button>
+          </div>
         </div>
 
         {/* Vidéo finale */}
