@@ -79,7 +79,7 @@ const SubmitVideoPage = () => {
     }
   }, [success, navigate, eventId]);
 
-  // ✅ Vérification de la durée max (10s)
+
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -98,7 +98,7 @@ const SubmitVideoPage = () => {
         setError("⛔ La vidéo ne doit pas dépasser 10 secondes.");
         setSelectedFile(null);
         setPreviewUrl(null);
-        e.target.value = null; // reset input
+        e.target.value = null;
       } else {
         setSelectedFile(file);
         setPreviewUrl(URL.createObjectURL(file));
@@ -107,6 +107,7 @@ const SubmitVideoPage = () => {
     };
     video.src = URL.createObjectURL(file);
   };
+
 
   const handleDeleteVideo = async () => {
     if (!window.confirm('Supprimer votre vidéo ?')) return;
@@ -118,6 +119,7 @@ const SubmitVideoPage = () => {
       toast.error('Erreur lors de la suppression');
     }
   };
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -132,7 +134,9 @@ const SubmitVideoPage = () => {
     setUploadProgress(0);
 
     try {
-      await videoService.uploadVideo(eventId, user.id, selectedFile);
+
+      // ✅ ICI : NOUVELLE LIGNE AVEC participantName
+      await videoService.uploadVideo(eventId, user.id, selectedFile, participantName);
 
       await activityService.logActivity({
         event_id: eventId,
@@ -143,6 +147,7 @@ const SubmitVideoPage = () => {
 
       setUploadProgress(100);
       setSuccess(true);
+
     } catch (err) {
       console.error("Erreur envoi vidéo:", err);
       setError(err.message || "Une erreur est survenue.");
@@ -150,6 +155,7 @@ const SubmitVideoPage = () => {
       setSubmitting(false);
     }
   };
+
 
   if (loading) return <Loading fullPage />;
 
@@ -171,6 +177,7 @@ const SubmitVideoPage = () => {
   const videoUrl = existingVideo
     ? supabase.storage.from('videos').getPublicUrl(existingVideo.storage_path).data.publicUrl
     : null;
+
 
   return (
     <MainLayout>

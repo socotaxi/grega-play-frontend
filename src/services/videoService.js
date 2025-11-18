@@ -7,8 +7,9 @@ const videoService = {
    * @param {string} eventId - UUID de l'événement
    * @param {string} userId - UUID de l'utilisateur
    * @param {File|Blob|string} file - Fichier vidéo à uploader
+   * @param {string|null} participantName - Nom de l'auteur de la vidéo (optionnel)
    */
-  async uploadVideo(eventId, userId, file) {
+  async uploadVideo(eventId, userId, file, participantName = null) {
     try {
       if (!file) {
         throw new Error("Aucun fichier reçu pour l'upload.");
@@ -39,6 +40,8 @@ const videoService = {
             event_id: eventId,
             user_id: userId,
             storage_path: fileName,
+            // ✅ On enregistre le nom de l'auteur ici
+            participant_name: participantName,
           },
         ])
         .select()
@@ -61,7 +64,8 @@ const videoService = {
     try {
       const { data, error } = await supabase
         .from("videos")
-        .select("id, event_id, user_id, storage_path, created_at")
+        // ✅ On ajoute participant_name dans le SELECT
+        .select("id, event_id, user_id, storage_path, created_at, participant_name")
         .eq("event_id", eventId)
         .order("created_at", { ascending: true });
 
