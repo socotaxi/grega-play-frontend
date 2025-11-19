@@ -1,30 +1,61 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import RegisterForm from '../components/auth/RegisterForm';
 
 const RegisterPage = () => {
   return (
     <MainLayout>
-      <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <img
-            className="mx-auto h-12 w-auto"
-            src="/logo192.png"
-            alt="Grega Play"
-          />
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Créer un compte Grega Play
-          </h2>
-          <p className="mt-2 text-center text-sm text-gray-600">
-            Déjà un compte ?{' '}
-            <a href="/login" className="font-medium text-indigo-600 hover:text-indigo-500">
-              Se connecter
-            </a>
-          </p>
-        </div>
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-6 shadow rounded-lg sm:px-10">
-            <RegisterForm />
+      <div className="min-h-[calc(100vh-80px)] bg-gray-50 flex items-center">
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-10 flex flex-col md:flex-row md:items-center md:justify-between gap-10">
+          
+          {/* Bloc texte à gauche (cohérent avec LoginPage) */}
+          <div className="md:w-1/2">
+            <h1 className="text-3xl font-bold text-gray-900 mb-3">
+              Crée ton compte Grega Play
+            </h1>
+            <p className="text-base text-gray-600 mb-4">
+              En quelques secondes, tu peux commencer à créer des événements,
+              inviter tes proches et générer des vidéos souvenirs automatiquement.
+            </p>
+            <ul className="space-y-2 text-sm text-gray-700">
+              <li className="flex gap-2">
+                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
+                <span>Crée un événement (anniversaire, mariage, surprise…).</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
+                <span>Invite tes amis à envoyer leurs vidéos facilement.</span>
+              </li>
+              <li className="flex gap-2">
+                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
+                <span>Laisse Grega Play assembler tout ça en une seule vidéo.</span>
+              </li>
+            </ul>
+
+            <p className="mt-6 text-sm text-gray-700">
+              Tu as déjà un compte ?{' '}
+              <Link
+                to="/login"
+                className="font-semibold text-indigo-600 hover:text-indigo-700 underline-offset-2 hover:underline"
+              >
+                Se connecter
+              </Link>
+            </p>
+          </div>
+
+          {/* Carte d’inscription à droite */}
+          <div className="md:w-1/2">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-6 py-7">
+              <h2 className="text-xl font-semibold text-gray-900 mb-1 text-center md:text-left">
+                Inscription
+              </h2>
+              <p className="text-xs text-gray-500 mb-5 text-center md:text-left">
+                Renseigne ton email et ton mot de passe pour créer ton compte Grega Play.
+              </p>
+
+              <RegisterForm />
+            </div>
           </div>
         </div>
       </div>
