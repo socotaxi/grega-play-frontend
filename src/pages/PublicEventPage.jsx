@@ -124,6 +124,41 @@ const PublicEventPage = () => {
   const isDone = event.status === "done";
   const isCanceled = event.status === "canceled";
 
+  // Fonction utilitaire pour afficher le média
+  const renderMedia = (url) => {
+    if (!url) return null;
+
+    const lower = url.toLowerCase();
+
+    if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+      return (
+        <video
+          src={url}
+          controls
+          className="w-full rounded-lg border mt-4"
+        />
+      );
+    }
+
+    if (lower.match(/\.(mp3|wav|ogg)$/i)) {
+      return (
+        <audio
+          src={url}
+          controls
+          className="w-full mt-4"
+        />
+      );
+    }
+
+    return (
+      <img
+        src={url}
+        alt="Illustration de l'événement"
+        className="w-full rounded-lg border mt-4 object-cover"
+      />
+    );
+  };
+
   return (
     <MainLayout>
       <div className="py-6 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
@@ -171,6 +206,9 @@ const PublicEventPage = () => {
               })}
             </p>
           )}
+
+          {/* ✅ Nouveau : affichage du média d'illustration si présent */}
+          {event.media_url && renderMedia(event.media_url)}
         </div>
 
         {/* Bloc participation */}

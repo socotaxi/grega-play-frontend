@@ -21,7 +21,7 @@ const eventService = {
   async getEventById(eventId) {
     const { data, error } = await supabase
       .from('events')
-            .select(`
+      .select(`
         id,
         title,
         description,
@@ -31,7 +31,9 @@ const eventService = {
         max_clip_duration,
         user_id,
         created_at,
-        public_code
+        public_code,
+        media_url,         -- ✅ NOUVEAU : URL du média d'illustration
+        final_video_path   -- ✅ (utile pour la vidéo finale si tu l'utilises)
       `)
       .eq('id', eventId)
       .single();
@@ -58,7 +60,7 @@ const eventService = {
   },
 
   // ✅ Créer un event
-  // ⬇⬇⬇ MODIF ICI : on ajoute public_code dans la signature et l'insert
+  // ⬇⬇⬇ MODIF ICI : on ajoute media_url dans la signature et l'insert
   async createEvent({
     title,
     description,
@@ -67,7 +69,8 @@ const eventService = {
     videoDuration,
     maxClipDuration,
     userId,
-    public_code,        // ✅ on récupère bien public_code depuis le payload
+    public_code,     // ✅ on récupère bien public_code depuis le payload
+    media_url,       // ✅ NOUVEAU : URL du média envoyée depuis CreateEventPage
   }) {
     const { data, error } = await supabase
       .from('events')
@@ -80,7 +83,8 @@ const eventService = {
           video_duration: videoDuration,
           max_clip_duration: maxClipDuration,
           user_id: userId,
-          public_code: public_code,   // ✅ on l'enregistre dans la colonne Supabase
+          public_code: public_code,  // ✅ on l'enregistre dans la colonne Supabase
+          media_url: media_url,      // ✅ on enregistre aussi le média
         },
       ])
       .select()

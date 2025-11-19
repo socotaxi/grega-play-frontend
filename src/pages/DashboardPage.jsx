@@ -165,30 +165,50 @@ const DashboardPage = () => {
           <div className="space-y-4">
             {sortedEvents.map((event) => {
               const status = getStatusInfo(event.status);
+              const hasFinalVideo = !!event.final_video_url; // ✅ indicateur vidéo finale
+
               return (
                 <div
                   key={event.id}
                   className="bg-white shadow rounded-lg p-4 flex flex-col sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div>
+                  <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900">{event.title}</h3>
                     <p className="text-sm text-gray-500">{formatDate(event.created_at)}</p>
 
+                    {/* ✅ Statut principal */}
                     <span className={`inline-block mt-2 px-2 py-1 text-xs font-medium rounded ${status.color}`}>
                       {status.label}
                     </span>
 
-                    {/* ✅ AJOUT : Badge "Expiré" */}
+                    {/* ✅ Badge "Expiré" */}
                     {isEventExpired(event) && (
                       <span className="inline-block ml-2 mt-2 px-2 py-1 text-xs font-medium rounded bg-red-100 text-red-800">
                         Expiré
                       </span>
                     )}
 
-                    {/* ───────────────────────────────────────────── */}
-                    {/*                Lien public + WhatsApp         */}
-                    {/* ───────────────────────────────────────────── */}
+                    {/* ✅ Badge "Vidéo finale prête" si final_video_url existe */}
+                    {hasFinalVideo && (
+                      <span className="inline-block ml-2 mt-2 px-2 py-1 text-xs font-medium rounded bg-purple-100 text-purple-800">
+                        Vidéo finale prête
+                      </span>
+                    )}
 
+                    {/* ✅ Miniature cliquable : ouvre la page détail */}
+                    {event.media_url && (
+                      <div className="mt-3">
+                        <Link to={`/events/${event.id}`}>
+                          <img
+                            src={event.media_url}
+                            alt="Miniature de l'événement"
+                            className="w-24 h-16 object-cover rounded border cursor-pointer hover:opacity-90 transition"
+                          />
+                        </Link>
+                      </div>
+                    )}
+
+                    {/* Lien public + WhatsApp */}
                     {event.public_code && (
                       <div className="mt-3">
                         <label className="block text-xs font-medium text-gray-500 mb-1">
@@ -247,8 +267,10 @@ const DashboardPage = () => {
                         Inviter
                       </Link>
                     )}
+
+                    {/* "Voir" envoie vers la page détail */}
                     <Link
-                      to={`/events/${event.id}/final`}
+                      to={`/events/${event.id}`}
                       className="inline-flex items-center px-3 py-2 border border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-sm font-medium rounded-lg"
                     >
                       Voir

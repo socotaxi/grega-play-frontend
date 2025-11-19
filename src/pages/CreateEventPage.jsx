@@ -8,6 +8,7 @@ import invitationService from "../services/invitationService";
 import activityService from "../services/activityService";
 import Button from "../components/ui/Button";
 import MainLayout from "../layout/MainLayout"; // ✅ ajout import
+import supabase from "../lib/supabaseClient"; // ✅ NOUVEAU : import Supabase
 
 // ✅ Génère un code public unique pour le lien partageable
 const generatePublicCode = (length = 12) => {
@@ -36,6 +37,9 @@ const CreateEventPage = () => {
 
   const [loading, setLoading] = useState(false);
   const [participantEmail, setParticipantEmail] = useState("");
+
+  // ✅ NOUVEAU : fichier média optionnel
+  const [mediaFile, setMediaFile] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -72,6 +76,31 @@ const CreateEventPage = () => {
 
     setLoading(true);
     try {
+      // ✅ NOUVEAU : upload du média si présent
+      let mediaUrl = null;
+
+      if (mediaFile) {
+        const fileExt = mediaFile.name.split(".").pop();
+        const fileName = `${user?.id || "anonymous"}_${Date.now()}.${fileExt}`;
+
+        const { data: uploadData, error: uploadError } = await supabase.storage
+          .from("event-media") // ⚠️ Assure-toi que ce bucket existe
+          .upload(`events/${fileName}`, mediaFile);
+
+        if (uploadError) {
+          console.error("Erreur upload média:", uploadError);
+          toast.error("Erreur lors de l'upload du média");
+          setLoading(false);
+          return;
+        }
+
+        const { data: publicUrlData } = supabase.storage
+          .from("event-media")
+          .getPublicUrl(uploadData.path);
+
+        mediaUrl = publicUrlData?.publicUrl || null;
+      }
+
       const event = await eventService.createEvent({
         ...formData,
         userId: user?.id, // ✅ toujours l’UUID, pas l’email
@@ -79,6 +108,8 @@ const CreateEventPage = () => {
         maxClipDuration: parseInt(formData.maxClipDuration),
         // ✅ On envoie le code public vers Supabase
         public_code: publicCode,
+        // ✅ NOUVEAU : URL du média associé
+        media_url: mediaUrl,
       });
 
       // Invitations
@@ -112,7 +143,7 @@ const CreateEventPage = () => {
   return (
     <MainLayout>
       {/* ✅ enveloppe ajoutée */}
-      <div className="max-w-2xl mx-auto p-6 bg-white rounded-xl shadow">
+      <div className="max-w-2xl mx-auto p-6 bg-gray-50 rounded-xl shadow-lg border-2 border-grey">
         <h1 className="text-2xl font-bold mb-6">Créer un événement</h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -140,6 +171,26 @@ const CreateEventPage = () => {
               onChange={handleChange}
               className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
             />
+          </div>
+
+          {/* ✅ NOUVEAU : champ pour média (optionnel) */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700">
+              Média (photo, vidéo ou musique)
+            </label>
+            <input
+              type="file"
+              accept="image/*,video/*,audio/*"
+              onChange={(e) =>
+                setMediaFile(e.target.files && e.target.files[0]
+                  ? e.target.files[0]
+                  : null)
+              }
+              className="mt-1 block w-full border-gray-300 rounded-md shadow-sm"
+            />
+            <p className="mt-1 text-xs text-gray-500">
+              Optionnel. Ce média illustrera ton événement sur la page publique.
+            </p>
           </div>
 
           <div>

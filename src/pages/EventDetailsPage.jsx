@@ -17,10 +17,12 @@ const EventDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  // ✅ On utilise getEvent (select('*')) pour récupérer TOUTES les colonnes
   const fetchEvent = useCallback(async () => {
     try {
       setLoading(true);
-      const data = await eventService.getEventById(id);
+      const data = await eventService.getEvent(id);
+      console.log("EVENT DETAIL:", data); // ✅ Debug dans la console
       setEvent(data);
     } catch (err) {
       console.error("Erreur récupération événement:", err);
@@ -72,66 +74,111 @@ const EventDetailsPage = () => {
 
   const isOwner = event.user_id === user?.id;
 
+  // ✅ Fonction utilitaire pour afficher le média selon le type
+  const renderMedia = (url) => {
+    if (!url) return null;
+
+    const lower = url.toLowerCase();
+
+    if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+      return (
+        <video
+          src={url}
+          controls
+          className="w-full rounded-lg border mt-4"
+        />
+      );
+    }
+
+    if (lower.match(/\.(mp3|wav|ogg)$/i)) {
+      return (
+        <audio
+          src={url}
+          controls
+          className="w-full mt-4"
+        />
+      );
+    }
+
+    return (
+      <img
+        src={url}
+        alt="Illustration de l'événement"
+        className="w-full rounded-lg border mt-4 object-cover"
+      />
+    );
+  };
+
   return (
     <MainLayout>
       <div className="py-6 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
         {/* Infos événement */}
         <div className="bg-white shadow rounded-lg p-6">
           <h1 className="text-2xl font-bold text-gray-900">{event.title}</h1>
-          <p className="text-sm text-gray-500 mt-1">{event.description}</p>
+
+          {/* ✅ Description (si présente) */}
+          {event.description && (
+            <p className="text-sm text-gray-500 mt-1">{event.description}</p>
+          )}
+
           <p className="mt-2 text-sm text-gray-400">
             Créé le {new Date(event.created_at).toLocaleDateString("fr-FR")}
           </p>
+
+          {/* ✅ Nouveau : affichage du média associé à l'événement */}
+          {event.media_url && renderMedia(event.media_url)}
+
           {/* Lien de partage public */}
-{event.public_code && (
-  <div className="mt-4">
-    <label className="block text-xs font-medium text-gray-500 mb-1">
-      Lien de partage
-    </label>
-    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-      <div className="flex-1 flex items-center gap-2">
-        <input
-          type="text"
-          readOnly
-          value={`${window.location.origin}/e/${event.public_code}`}
-          className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-700"
-        />
-        <button
-          type="button"
-          onClick={() => {
-            const shareUrl = `${window.location.origin}/e/${event.public_code}`;
-            navigator.clipboard
-              .writeText(shareUrl)
-              .then(() => {
-                toast.success("Lien copié dans le presse-papiers");
-              })
-              .catch(() => {
-                toast.error("Impossible de copier le lien");
-              });
-          }}
-          className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
-        >
-          Copier
-        </button>
-      </div>
+          {event.public_code && (
+            <div className="mt-4">
+              <label className="block text-xs font-medium text-gray-500 mb-1">
+                Lien de partage
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <div className="flex-1 flex items-center gap-2">
+                  <input
+                    type="text"
+                    readOnly
+                    value={`${window.location.origin}/e/${event.public_code}`}
+                    className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 bg-gray-50 text-gray-700"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const shareUrl = `${window.location.origin}/e/${event.public_code}`;
+                      navigator.clipboard
+                        .writeText(shareUrl)
+                        .then(() => {
+                          toast.success("Lien copié dans le presse-papiers");
+                        })
+                        .catch(() => {
+                          toast.error("Impossible de copier le lien");
+                        });
+                    }}
+                    className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
+                  >
+                    Copier
+                  </button>
+                </div>
 
-      {/* Bouton WhatsApp */}
-      <button
-        type="button"
-        onClick={() => {
-          const shareUrl = `${window.location.origin}/e/${event.public_code}`;
-          const message = `Participe à mon événement Grega Play : ${shareUrl}`;
-          const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(message)}`;
-          window.open(whatsappUrl, "_blank");
-        }}
-        className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
-      >
-        Partager sur WhatsApp
-      </button>
-    </div>
-  </div>
-)}
-
+                {/* Bouton WhatsApp */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const shareUrl = `${window.location.origin}/e/${event.public_code}`;
+                    const message = `Participe à mon événement Grega Play : ${shareUrl}`;
+                    const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(
+                      message
+                    )}`;
+                    window.open(whatsappUrl, "_blank");
+                  }}
+                  className="inline-flex items-center justify-center px-3 py-1.5 text-xs font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
+                >
+                  Partager sur WhatsApp
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Actions principales */}
