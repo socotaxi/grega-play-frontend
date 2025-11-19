@@ -15,11 +15,11 @@ const HomePage = () => {
   return (
     <MainLayout>
       <div className="min-h-[calc(100vh-80px)] bg-gray-50">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-12">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
 
-          {/* HERO façon Leetchi : bandeau clair + carte à droite */}
-          <section className="bg-gradient-to-br from-emerald-50 via-white to-gray-50 border border-emerald-100 rounded-3xl px-5 sm:px-8 py-8 sm:py-10 shadow-sm">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-8">
+          {/* HERO façon : bandeau clair + carte à droite */}
+          <section className="bg-gradient-to-br from-emerald-50 via-white to-gray-50 border border-emerald-100 rounded-3xl px-5 sm:px-8 py-8 shadow-sm">
+            <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
 
               {/* Texte gauche */}
               <div className="md:w-1/2">
@@ -33,16 +33,15 @@ const HomePage = () => {
                 <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
                   Créez des montages vidéo collaboratifs
                   <span className="block text-emerald-600 mt-1">
-                    qui rapprochent vos proches.
+                    avec vos amis et votre famille.
                   </span>
                 </h1>
 
                 <p className="mt-4 text-sm sm:text-base text-gray-700">
-                  Créez des montages vidéo collaboratifs avec vos amis et votre famille.
                   Partagez des moments uniques et assemblez-les automatiquement en une seule vidéo.
                 </p>
                 <p className="mt-2 text-sm sm:text-base text-gray-600">
-                  Chaque projet devient un prétexte pour créer du lien, rassembler la famille,
+                  Chaque moment devient un prétexte pour créer du lien, rassembler la famille,
                   les amis ou l’équipe – même à distance.
                 </p>
 
@@ -68,16 +67,13 @@ const HomePage = () => {
                 </p>
               </div>
 
-              {/* Carte “exemple d’événement” à droite, façon Leetchi */}
+              {/* Carte “exemple d’événement” à droite, façon */}
               <div className="md:w-1/2">
                 <div className="bg-white rounded-3xl shadow-md border border-emerald-100 px-5 py-5 sm:px-6 sm:py-6 max-w-md ml-auto">
                   <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-600">
-                        Exemple d’événement
-                      </p>
+                    <div>                      
                       <h2 className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
-                        Anniversaire de Mama à distance
+                        Anniversaire de Mamouna
                       </h2>
                       <p className="mt-1 text-[11px] text-gray-500">
                         Famille & amis envoient chacun une courte vidéo.
@@ -99,13 +95,13 @@ const HomePage = () => {
                         e.currentTarget.style.display = 'none';
                       }}
                     />
-                    {/* fallback simple si pas d’image */}
+                    {/* fallback simple si pas d’image *
                     <div className="w-full h-40 flex flex-col items-center justify-center text-center text-[11px] text-gray-500">
                       <p>Ajoute ici une capture d’écran de ton dashboard Grega Play.</p>
-                    </div>
+                    </div>*/}
                   </div>
 
-                  {/* Progression, façon cagnotte Leetchi */}
+                  {/* Progression, façon */}
                   <div className="mt-4">
                     <div className="flex items-center justify-between text-[11px] text-gray-600 mb-1">
                       <span>Vidéos reçues</span>
@@ -148,9 +144,9 @@ const HomePage = () => {
           <section>
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
+                {/*<div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
                   🎉
-                </div>
+                </div>*/}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
                     Pensé pour les moments importants
@@ -162,9 +158,9 @@ const HomePage = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
+               {/*<div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
                   🤝
-                </div>
+                </div>*/}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
                     100% collaboratif
@@ -176,9 +172,9 @@ const HomePage = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                <div className="h-8 w-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600">
+                {/*<div className="h-8 w-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600">
                   📱
-                </div>
+                </div>*/}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
                     Format vertical prêt à partager

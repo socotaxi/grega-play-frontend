@@ -132,7 +132,7 @@ const DashboardPage = () => {
     return (
       <MainLayout>
         <div className="min-h-[calc(100vh-80px)] bg-gray-50">
-          <div className="py-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="py-10 max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
             <Loading />
           </div>
         </div>
@@ -143,11 +143,11 @@ const DashboardPage = () => {
   return (
     <MainLayout>
       <div className="min-h-[calc(100vh-80px)] bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-          {/* En-tête façon CreateEventPage */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-6">
+          {/* En-tête */}
+          <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5 flex flex-col md:flex-row md:items-center md:justify-between gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
                 Tableau de bord
               </h1>
               <p className="mt-1 text-sm text-gray-600">
@@ -157,12 +157,12 @@ const DashboardPage = () => {
                   user?.email}
               </p>
               <p className="mt-2 text-sm text-gray-500">
-                Gère tous tes projets vidéo, invite des participants et suis
+                Gère tes projets vidéo, invite des participants et suis
                 l&apos;avancement de tes montages Grega Play.
               </p>
             </div>
 
-            <div className="flex flex-col items-stretch md:items-end gap-2">
+            <div className="flex flex-col items-stretch md:items-end gap-3">
               <InstallAppButton />
               <Link to="/create-event" className="w-full md:w-auto">
                 <Button className="w-full md:w-auto py-2.5 text-sm font-semibold inline-flex items-center justify-center">
@@ -188,12 +188,12 @@ const DashboardPage = () => {
 
           {/* Bloc erreur éventuel */}
           {error && (
-            <div className="mb-6 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
               {error}
             </div>
           )}
 
-          {/* Bloc liste / état vide dans une carte */}
+          {/* Contenu principal */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* Colonne principale : événements */}
             <div className="lg:col-span-2">
@@ -258,7 +258,7 @@ const DashboardPage = () => {
                         return (
                           <div
                             key={event.id}
-                            className="rounded-2xl border border-gray-200 bg-gray-50/70 hover:bg-gray-50 shadow-sm px-4 py-4 transition-colors"
+                            className="rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 shadow-sm px-4 py-4 transition-colors"
                           >
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
                               {/* Infos principales */}
@@ -368,7 +368,7 @@ const DashboardPage = () => {
                                 {event.user_id === user.id && (
                                   <Link
                                     to={`/events/${event.id}/manage-participants`}
-                                    className="inline-flex items-center px-3 py-1.5 border border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-lg"
+                                    className="inline-flex items-center px-3 py-1.5 border border-emerald-600 text-emerald-600 hover:bg-emerald-50 text-xs font-medium rounded-lg"
                                   >
                                     Inviter
                                   </Link>
@@ -376,7 +376,7 @@ const DashboardPage = () => {
 
                                 <Link
                                   to={`/events/${event.id}`}
-                                  className="inline-flex items-center px-3 py-1.5 border border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-lg"
+                                  className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-medium rounded-lg"
                                 >
                                   Voir
                                 </Link>

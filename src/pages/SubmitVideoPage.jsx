@@ -131,13 +131,27 @@ const SubmitVideoPage = () => {
     }
 
     setSubmitting(true);
-    setUploadProgress(0);
+
+    // 🟦 DÉBUT : simulation de progression
+    setUploadProgress(10);
+    let intervalId = null;
+
+    intervalId = setInterval(() => {
+      setUploadProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(intervalId);
+          return 90;
+        }
+        return prev + 0.5; // progression douce
+      });
+    }, 500);
+    // 🟦 FIN : simulation de progression
 
     try {
-
-      // ✅ ICI : NOUVELLE LIGNE AVEC participantName
+      // Upload de la vidéo
       await videoService.uploadVideo(eventId, user.id, selectedFile, participantName);
 
+      // Log dans le feed d'activité
       await activityService.logActivity({
         event_id: eventId,
         user_id: user?.id || null,
@@ -145,14 +159,17 @@ const SubmitVideoPage = () => {
         message: `${participantName} a posté une vidéo 🎥`,
       });
 
+      // Upload terminé → on termine la barre à 100 %
       setUploadProgress(100);
       setSuccess(true);
 
     } catch (err) {
       console.error("Erreur envoi vidéo:", err);
       setError(err.message || "Une erreur est survenue.");
+      setUploadProgress(0);
     } finally {
       setSubmitting(false);
+      if (intervalId) clearInterval(intervalId);
     }
   };
 
@@ -209,23 +226,38 @@ const SubmitVideoPage = () => {
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Vidéo</label>
-                <input type="file" accept="video/*" onChange={handleFileChange} />
+                <input
+                  type="file"
+                  accept="video/*"
+                  onChange={handleFileChange}
+                  disabled={submitting}
+                />
                 {previewUrl && (
                   <video src={previewUrl} controls className="mt-4 w-full rounded" />
                 )}
               </div>
 
+              {/* 🟦 Barre de progression visible dès le début de l'upload */}
               {uploadProgress > 0 && (
-                <div className="w-full bg-gray-200 rounded-full h-4 mt-2">
-                  <div
-                    className="bg-indigo-600 h-4 rounded-full transition-all duration-200 ease-out"
-                    style={{ width: `${uploadProgress}%` }}
-                  ></div>
+                <div className="mt-2">
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
+                      style={{ width: `${uploadProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 text-right">
+                    {uploadProgress}%
+                  </p>
                 </div>
               )}
 
               <div>
-                <Button type="submit" loading={submitting}>
+                <Button
+                  type="submit"
+                  loading={submitting}
+                  disabled={submitting || !selectedFile}
+                >
                   Soumettre la vidéo
                 </Button>
               </div>

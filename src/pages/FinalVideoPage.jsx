@@ -23,6 +23,7 @@ const FinalVideoPage = () => {
   const [generationProgress, setGenerationProgress] = useState(0);
   const [error, setError] = useState(null);
   const [submittedVideos, setSubmittedVideos] = useState([]);
+  const [generationLabel, setGenerationLabel] = useState("");
 
   const isOwner = user && event && user.id === event.user_id;
 
@@ -101,6 +102,7 @@ const FinalVideoPage = () => {
 
             setFinalVideo(`${baseUrl}?t=${Date.now()}`);
             setGenerationProgress(100);
+            setGenerationLabel("Montage terminé 🎉");
             setProcessing(false);
             toast.success("🎉 Vidéo finale générée !");
           }
@@ -180,59 +182,76 @@ const FinalVideoPage = () => {
   };
 
   const handleGenerateVideo = async () => {
-    if (!event || !user) return;
+  if (!event || !user) return;
 
-    let timer;
-    try {
-      setError(null);
-      setProcessing(true);
-      setGenerationProgress(0);
+  let timer;
+  try {
+    setError(null);
+    setProcessing(true);
+    setGenerationProgress(5); // démarre très bas
+    setGenerationLabel("Préparation des vidéos…"); // texte initial
 
-      setEvent(prev => prev ? { ...prev, status: 'processing' } : prev);
+    setEvent(prev => prev ? { ...prev, status: 'processing' } : prev);
 
-      timer = setInterval(() => {
-        setGenerationProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(timer);
-            return 90;
-          }
-          return prev + 2;
-        });
-      }, 300);
+    // 🟦 Barre de progression lente + texte dynamique
+    timer = setInterval(() => {
+      setGenerationProgress((prev) => {
+        if (prev >= 90) {
+          clearInterval(timer);
+          return 90;
+        }
 
-      const res = await videoService.generateFinalVideo(eventId);
+        const next = prev + 0.5; // progression plus lente
 
-      if (timer) clearInterval(timer);
-      setGenerationProgress((prev) => (prev < 90 ? 90 : prev));
+        // Texte dynamique selon l'avancement
+        if (next < 30) {
+          setGenerationLabel("Préparation des vidéos…");
+        } else if (next < 60) {
+          setGenerationLabel("Montage en cours…");
+        } else if (next < 90) {
+          setGenerationLabel("Finalisation de la vidéo…");
+        }
 
-      if (res?.finalVideoUrl?.videoUrl) {
-        const url = `${res.finalVideoUrl.videoUrl}?t=${Date.now()}`;
-        setFinalVideo(url);
-        setGenerationProgress(100);
-        setProcessing(false);
-        toast.success("🎉 Vidéo finale générée !");
-      }
-
-      const creatorName =
-        profile?.full_name && profile.full_name !== "User"
-          ? profile.full_name
-          : user?.email || "Un utilisateur";
-
-      await activityService.logActivity({
-        event_id: eventId,
-        user_id: user.id,
-        type: "generated_final_video",
-        message: `${creatorName} a (re)généré la vidéo finale de l'événement "${event.title}" 🎬✅`
+        return next;
       });
-    } catch (err) {
-      console.error('Error generating video:', err);
-      if (timer) clearInterval(timer);
+    }, 600); // tick plus espacé → plus lent
+    // 🟦 fin barre lente
+
+    const res = await videoService.generateFinalVideo(eventId);
+
+    if (timer) clearInterval(timer);
+    setGenerationProgress((prev) => (prev < 90 ? 90 : prev));
+
+    if (res?.finalVideoUrl?.videoUrl) {
+      const url = `${res.finalVideoUrl.videoUrl}?t=${Date.now()}`;
+      setFinalVideo(url);
+      setGenerationProgress(100);
+      setGenerationLabel("Montage terminé 🎉");
       setProcessing(false);
-      setGenerationProgress(0);
-      setError("Une erreur s'est produite lors de la génération de la vidéo.");
-      toast.error("❌ Erreur lors de la génération !");
+      toast.success("🎉 Vidéo finale générée !");
     }
-  };
+
+    const creatorName =
+      profile?.full_name && profile.full_name !== "User"
+        ? profile.full_name
+        : user?.email || "Un utilisateur";
+
+    await activityService.logActivity({
+      event_id: eventId,
+      user_id: user.id,
+      type: "generated_final_video",
+      message: `${creatorName} a (re)généré la vidéo finale de l'événement "${event.title}" 🎬✅`
+    });
+  } catch (err) {
+    console.error('Error generating video:', err);
+    if (timer) clearInterval(timer);
+    setProcessing(false);
+    setGenerationProgress(0);
+    setGenerationLabel("");
+    setError("Une erreur s'est produite lors de la génération de la vidéo.");
+    toast.error("❌ Erreur lors de la génération !");
+  }
+};
 
   if (loading) {
     return <Loading fullPage />;
@@ -324,14 +343,28 @@ const FinalVideoPage = () => {
                   Générer la vidéo
                 </Button>
               </div>
+
+              {/* Barre de progression similaire à l’upload */}
               {generationProgress > 0 && (
-                <div className="w-full bg-gray-200 rounded-full h-4 mt-4">
-                  <div
-                    className="bg-indigo-600 h-4 rounded-full transition-all duration-200 ease-out"
-                    style={{ width: `${generationProgress}%` }}
-                  ></div>
-                </div>
-              )}
+  <div className="mt-4">
+    {/* Texte dynamique au-dessus de la barre */}
+    {generationLabel && (
+      <p className="mb-1 text-sm text-gray-600 text-left">
+        {generationLabel}
+      </p>
+    )}
+    <div className="w-full bg-gray-200 rounded-full h-3">
+      <div
+        className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
+        style={{ width: `${generationProgress}%` }}
+      ></div>
+    </div>
+    <p className="mt-1 text-xs text-gray-500 text-right">
+      {Math.round(generationProgress)}%
+    </p>
+  </div>
+)}
+
             </div>
           ) : event?.status === 'done' && finalVideo && !isOwner ? (
             <p className="text-center text-gray-600 mt-4 italic">
@@ -354,11 +387,9 @@ const FinalVideoPage = () => {
                     controls
                     className="w-full h-auto rounded"
                   />
-                  {/* Auteur de la vidéo */}
                   <p className="mt-2 text-sm font-semibold text-gray-900 text-center truncate">
                     {video.participant_name || "Auteur inconnu"}
                   </p>
-                  {/* Date de partage */}
                   <p className="mt-1 text-xs text-gray-500 text-center">
                     Partagée le{" "}
                     {video.created_at
