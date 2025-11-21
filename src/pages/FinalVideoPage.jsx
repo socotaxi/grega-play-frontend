@@ -11,7 +11,17 @@ import activityService from "../services/activityService";
 import supabase from "../lib/supabaseClient";
 import { toast } from "react-toastify";
 
-const SUPABASE_PROJECT_ID = 'cgqnrqbyvetcgwolkjvl.supabase.co';
+// Helper pour obtenir l'URL publique d'une vidéo stockée dans le bucket "videos"
+const getPublicVideoUrl = (storagePath) => {
+  if (!storagePath) return null;
+
+  const { data } = supabase
+    .storage
+    .from("videos")
+    .getPublicUrl(storagePath);
+
+  return data?.publicUrl || null;
+};
 
 const FinalVideoPage = () => {
   const { eventId } = useParams();
@@ -182,76 +192,76 @@ const FinalVideoPage = () => {
   };
 
   const handleGenerateVideo = async () => {
-  if (!event || !user) return;
+    if (!event || !user) return;
 
-  let timer;
-  try {
-    setError(null);
-    setProcessing(true);
-    setGenerationProgress(5); // démarre très bas
-    setGenerationLabel("Préparation des vidéos…"); // texte initial
+    let timer;
+    try {
+      setError(null);
+      setProcessing(true);
+      setGenerationProgress(5); // démarre très bas
+      setGenerationLabel("Préparation des vidéos…"); // texte initial
 
-    setEvent(prev => prev ? { ...prev, status: 'processing' } : prev);
+      setEvent(prev => prev ? { ...prev, status: 'processing' } : prev);
 
-    // 🟦 Barre de progression lente + texte dynamique
-    timer = setInterval(() => {
-      setGenerationProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(timer);
-          return 90;
-        }
+      // 🟦 Barre de progression lente + texte dynamique
+      timer = setInterval(() => {
+        setGenerationProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(timer);
+            return 90;
+          }
 
-        const next = prev + 0.5; // progression plus lente
+          const next = prev + 0.5; // progression plus lente
 
-        // Texte dynamique selon l'avancement
-        if (next < 30) {
-          setGenerationLabel("Préparation des vidéos…");
-        } else if (next < 60) {
-          setGenerationLabel("Montage en cours…");
-        } else if (next < 90) {
-          setGenerationLabel("Finalisation de la vidéo…");
-        }
+          // Texte dynamique selon l'avancement
+          if (next < 30) {
+            setGenerationLabel("Préparation des vidéos…");
+          } else if (next < 60) {
+            setGenerationLabel("Montage en cours…");
+          } else if (next < 90) {
+            setGenerationLabel("Finalisation de la vidéo…");
+          }
 
-        return next;
+          return next;
+        });
+      }, 600); // tick plus espacé → plus lent
+      // 🟦 fin barre lente
+
+      const res = await videoService.generateFinalVideo(eventId);
+
+      if (timer) clearInterval(timer);
+      setGenerationProgress((prev) => (prev < 90 ? 90 : prev));
+
+      if (res?.finalVideoUrl?.videoUrl) {
+        const url = `${res.finalVideoUrl.videoUrl}?t=${Date.now()}`;
+        setFinalVideo(url);
+        setGenerationProgress(100);
+        setGenerationLabel("Montage terminé 🎉");
+        setProcessing(false);
+        toast.success("🎉 Vidéo finale générée !");
+      }
+
+      const creatorName =
+        profile?.full_name && profile.full_name !== "User"
+          ? profile.full_name
+          : user?.email || "Un utilisateur";
+
+      await activityService.logActivity({
+        event_id: eventId,
+        user_id: user.id,
+        type: "generated_final_video",
+        message: `${creatorName} a (re)généré la vidéo finale de l'événement "${event.title}" 🎬✅`
       });
-    }, 600); // tick plus espacé → plus lent
-    // 🟦 fin barre lente
-
-    const res = await videoService.generateFinalVideo(eventId);
-
-    if (timer) clearInterval(timer);
-    setGenerationProgress((prev) => (prev < 90 ? 90 : prev));
-
-    if (res?.finalVideoUrl?.videoUrl) {
-      const url = `${res.finalVideoUrl.videoUrl}?t=${Date.now()}`;
-      setFinalVideo(url);
-      setGenerationProgress(100);
-      setGenerationLabel("Montage terminé 🎉");
+    } catch (err) {
+      console.error('Error generating video:', err);
+      if (timer) clearInterval(timer);
       setProcessing(false);
-      toast.success("🎉 Vidéo finale générée !");
+      setGenerationProgress(0);
+      setGenerationLabel("");
+      setError("Une erreur s'est produite lors de la génération de la vidéo.");
+      toast.error("❌ Erreur lors de la génération !");
     }
-
-    const creatorName =
-      profile?.full_name && profile.full_name !== "User"
-        ? profile.full_name
-        : user?.email || "Un utilisateur";
-
-    await activityService.logActivity({
-      event_id: eventId,
-      user_id: user.id,
-      type: "generated_final_video",
-      message: `${creatorName} a (re)généré la vidéo finale de l'événement "${event.title}" 🎬✅`
-    });
-  } catch (err) {
-    console.error('Error generating video:', err);
-    if (timer) clearInterval(timer);
-    setProcessing(false);
-    setGenerationProgress(0);
-    setGenerationLabel("");
-    setError("Une erreur s'est produite lors de la génération de la vidéo.");
-    toast.error("❌ Erreur lors de la génération !");
-  }
-};
+  };
 
   if (loading) {
     return <Loading fullPage />;
@@ -346,24 +356,24 @@ const FinalVideoPage = () => {
 
               {/* Barre de progression similaire à l’upload */}
               {generationProgress > 0 && (
-  <div className="mt-4">
-    {/* Texte dynamique au-dessus de la barre */}
-    {generationLabel && (
-      <p className="mb-1 text-sm text-gray-600 text-left">
-        {generationLabel}
-      </p>
-    )}
-    <div className="w-full bg-gray-200 rounded-full h-3">
-      <div
-        className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
-        style={{ width: `${generationProgress}%` }}
-      ></div>
-    </div>
-    <p className="mt-1 text-xs text-gray-500 text-right">
-      {Math.round(generationProgress)}%
-    </p>
-  </div>
-)}
+                <div className="mt-4">
+                  {/* Texte dynamique au-dessus de la barre */}
+                  {generationLabel && (
+                    <p className="mb-1 text-sm text-gray-600 text-left">
+                      {generationLabel}
+                    </p>
+                  )}
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
+                      style={{ width: `${generationProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 text-right">
+                    {Math.round(generationProgress)}%
+                  </p>
+                </div>
+              )}
 
             </div>
           ) : event?.status === 'done' && finalVideo && !isOwner ? (
@@ -380,41 +390,45 @@ const FinalVideoPage = () => {
           <div className="mt-10">
             <h3 className="text-lg font-semibold text-gray-900 mb-4">🎥 Vidéos soumises</h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
-              {submittedVideos.map((video, index) => (
-                <div key={video.id || index} className="border rounded-lg shadow-sm p-2 bg-white">
-                  <video
-                    src={`https://${SUPABASE_PROJECT_ID}/storage/v1/object/public/videos/${video.storage_path}`}
-                    controls
-                    className="w-full h-auto rounded"
-                  />
-                  <p className="mt-2 text-sm font-semibold text-gray-900 text-center truncate">
-                    {video.participant_name || "Auteur inconnu"}
-                  </p>
-                  <p className="mt-1 text-xs text-gray-500 text-center">
-                    Partagée le{" "}
-                    {video.created_at
-                      ? new Date(video.created_at).toLocaleString("fr-FR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
-                      : "date inconnue"}
-                  </p>
+              {submittedVideos.map((video, index) => {
+                const publicUrl = getPublicVideoUrl(video.storage_path);
 
-                  {(isOwner || video.user_id === user?.id) && (
-                    <div className="mt-2 flex justify-center">
-                      <button
-                        onClick={() => handleDeleteVideo(video.id)}
-                        className="text-red-600 text-sm hover:underline"
-                      >
-                        Supprimer
-                      </button>
-                    </div>
-                  )}
-                </div>
-              ))}
+                return (
+                  <div key={video.id || index} className="border rounded-lg shadow-sm p-2 bg-white">
+                    <video
+                      src={publicUrl}
+                      controls
+                      className="w-full h-auto rounded"
+                    />
+                    <p className="mt-2 text-sm font-semibold text-gray-900 text-center truncate">
+                      {video.participant_name || "Auteur inconnu"}
+                    </p>
+                    <p className="mt-1 text-xs text-gray-500 text-center">
+                      Partagée le{" "}
+                      {video.created_at
+                        ? new Date(video.created_at).toLocaleString("fr-FR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "date inconnue"}
+                    </p>
+
+                    {(isOwner || video.user_id === user?.id) && (
+                      <div className="mt-2 flex justify-center">
+                        <button
+                          onClick={() => handleDeleteVideo(video.id)}
+                          className="text-red-600 text-sm hover:underline"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}

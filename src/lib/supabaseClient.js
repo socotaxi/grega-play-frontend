@@ -79,8 +79,3 @@ try {
 }
 
 export default supabase;
-
-// Debug console en dev
-if (import.meta.env.DEV) {
-  window.supabase = supabase;
-}
