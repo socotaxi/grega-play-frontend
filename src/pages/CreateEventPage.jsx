@@ -7,8 +7,9 @@ import eventService from "../services/eventService";
 import invitationService from "../services/invitationService";
 import activityService from "../services/activityService";
 import Button from "../components/ui/Button";
-import MainLayout from "../layout/MainLayout"; // garde ton import actuel
+import MainLayout from "../layout/MainLayout";
 import supabase from "../lib/supabaseClient";
+import { subscribeToPush } from "../services/notificationService"; // 🆕 toggle notifs
 
 // Génère un code public unique pour le lien partageable
 const generatePublicCode = (length = 12) => {
@@ -33,6 +34,7 @@ const CreateEventPage = () => {
     maxClipDuration: 30,
     endDate: "",
     participants: [],
+    enableNotifications: true, // 🆕 toggle "Recevoir les notifications"
   });
 
   const [loading, setLoading] = useState(false);
@@ -42,7 +44,14 @@ const CreateEventPage = () => {
   const [mediaFile, setMediaFile] = useState(null);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
+    const { name, value, type, checked } = e.target;
+
+    // Gestion du checkbox
+    if (type === "checkbox") {
+      setFormData((prev) => ({ ...prev, [name]: checked }));
+      return;
+    }
+
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -110,7 +119,20 @@ const CreateEventPage = () => {
         maxClipDuration: parseInt(formData.maxClipDuration),
         public_code: publicCode,
         media_url: mediaUrl,
+        enable_notifications: formData.enableNotifications, // 🆕 envoyé au backend
       });
+
+      // 🆕 si l'utilisateur a choisi de recevoir les notifs, on l'abonne aux push
+   if (formData.enableNotifications && user?.id) {
+  console.log("🟢 Appel subscribeToPush pour userId:", user.id);
+  try {
+    await subscribeToPush(user.id);
+    console.log("✅ subscribeToPush terminé sans erreur");
+  } catch (err) {
+    console.error("❌ Erreur abonnement notifications push:", err);
+  }
+}
+
 
       await invitationService.addInvitations(
         event.id,
@@ -298,6 +320,28 @@ const CreateEventPage = () => {
                       required
                       className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
+                  </div>
+
+                  {/* 🆕 Toggle notifications */}
+                  <div className="mt-2 flex items-start gap-2">
+                    <input
+                      id="enableNotifications"
+                      name="enableNotifications"
+                      type="checkbox"
+                      checked={formData.enableNotifications}
+                      onChange={handleChange}
+                      className="mt-1 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                    <label
+                      htmlFor="enableNotifications"
+                      className="text-[12px] text-gray-700"
+                    >
+                      Recevoir les notifications pour cet événement
+                      <span className="block text-[11px] text-gray-500">
+                        Tu seras prévenu(e) quand une vidéo est envoyée ou quand
+                        la vidéo finale est prête.
+                      </span>
+                    </label>
                   </div>
                 </div>
 

@@ -8,6 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import eventService from "../services/eventService";
 import videoService from "../services/videoService";
 import { toast } from "react-toastify";
+import supabase from "../lib/supabaseClient"; // 🆕 pour mettre à jour enable_notifications
 
 const EventDetailsPage = () => {
   const { eventId } = useParams();
@@ -16,6 +17,10 @@ const EventDetailsPage = () => {
   const [event, setEvent] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+
+  // 🆕 état local pour le switch de notifications
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
+  const [updatingNotifications, setUpdatingNotifications] = useState(false);
 
   const statusMap = useMemo(
     () => ({
@@ -65,13 +70,15 @@ const EventDetailsPage = () => {
     []
   );
 
-  // Récupération de l'événement (toutes colonnes)
+  // Récupération de l'événement (toutes colonnes, y compris enable_notifications)
   const fetchEvent = useCallback(async () => {
     try {
       setLoading(true);
       const data = await eventService.getEvent(id);
       console.log("EVENT DETAIL:", data);
       setEvent(data);
+      // 🆕 initialise l'état du switch selon enable_notifications
+      setNotificationsEnabled(data?.enable_notifications !== false);
     } catch (err) {
       console.error("Erreur récupération événement:", err);
       toast.error("Impossible de charger l’événement.");
@@ -97,6 +104,44 @@ const EventDetailsPage = () => {
       toast.error("Erreur lors de la génération de la vidéo.");
     } finally {
       setGenerating(false);
+    }
+  };
+
+  // 🆕 gérer le toggle des notifications pour cet événement
+  const handleToggleNotifications = async () => {
+    if (!event) return;
+
+    const newValue = !notificationsEnabled;
+    setUpdatingNotifications(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("events")
+        .update({ enable_notifications: newValue })
+        .eq("id", event.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Erreur update enable_notifications:", error);
+        toast.error("Impossible de mettre à jour les notifications");
+        setUpdatingNotifications(false);
+        return;
+      }
+
+      setNotificationsEnabled(newValue);
+      setEvent(data);
+
+      toast.success(
+        newValue
+          ? "Notifications activées pour cet événement"
+          : "Notifications désactivées pour cet événement"
+      );
+    } catch (err) {
+      console.error("Erreur inattendue update notifications:", err);
+      toast.error("Erreur lors de la mise à jour des notifications");
+    } finally {
+      setUpdatingNotifications(false);
     }
   };
 
@@ -149,9 +194,7 @@ const EventDetailsPage = () => {
     }
 
     if (lower.match(/\.(mp3|wav|ogg)$/i)) {
-      return (
-        <audio src={url} controls className="w-full mt-4" />
-      );
+      return <audio src={url} controls className="w-full mt-4" />;
     }
 
     return (
@@ -186,22 +229,54 @@ const EventDetailsPage = () => {
               </p>
             </div>
 
-            <div className="flex flex-wrap gap-2">
-              <span
-                className={`inline-flex px-3 py-1 text-[11px] font-medium rounded-full ${statusInfo.color}`}
-              >
-                {statusInfo.label}
-              </span>
-              {expired && (
-                <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-red-100 text-red-800">
-                  Expiré
-                </span>
+            <div className="flex flex-col items-end gap-2">
+              {/* 🆕 Switch notifications (visible uniquement pour le créateur) */}
+              {isOwner && (
+                <button
+                  type="button"
+                  onClick={handleToggleNotifications}
+                  disabled={updatingNotifications}
+                  className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[11px] font-medium
+                    ${
+                      notificationsEnabled
+                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                        : "bg-gray-50 text-gray-600 border-gray-200"
+                    }`}
+                >
+                  <span
+                    className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
+                      ${notificationsEnabled ? "bg-emerald-500" : "bg-gray-300"}`}
+                  >
+                    <span
+                      className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
+                        ${notificationsEnabled ? "translate-x-3" : "translate-x-1"}`}
+                    />
+                  </span>
+                  {updatingNotifications
+                    ? "Mise à jour..."
+                    : notificationsEnabled
+                    ? "Notifications activées"
+                    : "Notifications désactivées"}
+                </button>
               )}
-              {event.final_video_path && (
-                <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-purple-100 text-purple-800">
-                  Vidéo finale prête
+
+              <div className="flex flex-wrap justify-end gap-2">
+                <span
+                  className={`inline-flex px-3 py-1 text-[11px] font-medium rounded-full ${statusInfo.color}`}
+                >
+                  {statusInfo.label}
                 </span>
-              )}
+                {expired && (
+                  <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-red-100 text-red-800">
+                    Expiré
+                  </span>
+                )}
+                {event.final_video_path && (
+                  <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-purple-100 text-purple-800">
+                    Vidéo finale prête
+                  </span>
+                )}
+              </div>
             </div>
           </div>
 

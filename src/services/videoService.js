@@ -197,7 +197,10 @@ const videoService = {
         `${import.meta.env.VITE_BACKEND_URL}/api/videos/process`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": import.meta.env.VITE_BACKEND_API_KEY, // 🔐 clé API ajoutée pour le backend
+          },
           body: JSON.stringify({ eventId }),
         }
       );
