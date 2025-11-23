@@ -1,4 +1,3 @@
-// src/pages/FinalVideoPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
@@ -273,6 +272,12 @@ const FinalVideoPage = () => {
     user &&
     (user.id === event.user_id || user.role === 'admin');
 
+  // 🔗 Lien public de partage (player) basé sur public_code
+  const publicShareUrl =
+    event?.public_code
+      ? `${window.location.origin}/player/${event.public_code}`
+      : finalVideo || "";
+
   return (
     <MainLayout>
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -330,7 +335,7 @@ const FinalVideoPage = () => {
                   Télécharger la vidéo
                 </a>
                 <a
-                  href={`https://wa.me/?text=${encodeURIComponent(`🎬 Voici notre vidéo finale de l'événement "${event.title}" 🎉\n\n${finalVideo}`)}`}
+                  href={`https://wa.me/?text=${encodeURIComponent(`🎬 Voici notre vidéo finale de l'événement "${event.title}" 🎉\n\n${publicShareUrl}`)}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-white bg-green-500 rounded-md hover:bg-green-600"
@@ -338,6 +343,34 @@ const FinalVideoPage = () => {
                   Partager sur WhatsApp
                 </a>
               </div>
+
+              {/* Lien de partage public (pro, version player) */}
+              {publicShareUrl && (
+                <div className="mt-4 max-w-xl mx-auto">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Lien de partage public
+                  </label>
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={publicShareUrl}
+                      className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm text-gray-700 bg-gray-50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(publicShareUrl);
+                        toast.success("Lien copié dans le presse-papiers");
+                      }}
+                      className="px-3 py-2 text-sm font-medium rounded-lg bg-emerald-600 text-white hover:bg-emerald-700"
+                    >
+                      Copier le lien
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="mt-5 text-center">
                 <Button onClick={handleGenerateVideo} loading={processing} disabled={processing}>
                   🔄 Régénérer la vidéo

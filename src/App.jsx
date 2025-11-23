@@ -21,12 +21,9 @@ import EventDetailsPage from "./pages/EventDetailsPage";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import PublicEventPage from "./pages/PublicEventPage";
-
-// ⚠️ AJOUT : page analytics admin
 import AdminStatsPage from "./pages/AdminStatsPage";
-
-// Layout
-import MainLayout from "./components/layout/MainLayout";
+// 🔹 NOUVEL AJOUT : page publique de lecture de la vidéo finale
+import PublicFinalVideoPage from "./pages/PublicFinalVideoPage";
 
 const App = () => {
   return (
@@ -45,15 +42,19 @@ const App = () => {
         <Route path="/invite/:eventId" element={<InvitationPage />} />
         <Route path="/submit-video/:eventId" element={<SubmitVideoPage />} />
         <Route path="/events/:eventId/final" element={<FinalVideoPage />} />
-        <Route path="/events/:eventId/manage-participants" element={<ManageParticipantsPage />} />
+        <Route
+          path="/events/:eventId/manage-participants"
+          element={<ManageParticipantsPage />}
+        />
         <Route path="/invitation/:token" element={<InvitationPage />} />
         <Route path="/check-email" element={<CheckEmailPage />} />
         <Route path="/events/:eventId" element={<EventDetailsPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/e/:publicCode" element={<PublicEventPage />} />
-
-        {/* ⚠️ AJOUT : Route page admin */}
+        {/* 🔹 NOUVEL AJOUT : route publique player */}
+        <Route path="/player/:publicCode" element={<PublicFinalVideoPage />} />
+        {/* ⚠️ Route page admin */}
         <Route path="/admin/stats" element={<AdminStatsPage />} />
       </Routes>
     </>

@@ -4,16 +4,48 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-    <!-- (Optionnel) laisse VitePWA injecter son manifest, on peut supprimer la ligne suivante -->
-    <!-- <link rel="manifest" href="/manifest.json" /> -->
-
     <meta name="theme-color" content="#4f46e5" />
     <title>Grega Play</title>
+
+    <!-- 🔥 META DESCRIPTION (SEO + aperçu) -->
+    <meta
+      name="description"
+      content="Grega Play permet de créer des montages vidéo collaboratifs avec vos amis, votre famille ou votre équipe. L’émotion se construit ensemble."
+    />
+
+    <!-- 🔥 OPEN GRAPH (WhatsApp, Facebook, LinkedIn) -->
+    <meta property="og:title" content="Grega Play – L’émotion se construit ensemble" />
+    <meta
+      property="og:description"
+      content="Créez des montages vidéo collaboratifs pour anniversaires, mariages, équipes, familles et événements spéciaux. Invitez, recevez les vidéos, et générez automatiquement un montage final."
+    />
+    <meta
+      property="og:image"
+      content="https://gregaplay.com/og-gregaplay.jpg"
+    />
+    <meta property="og:url" content="https://gregaplay.com" />
+    <meta property="og:type" content="website" />
+
+    <!-- 🔥 TWITTER / X PREVIEW -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Grega Play – L’émotion se construit ensemble" />
+    <meta
+      name="twitter:description"
+      content="Créez des montages vidéo collaboratifs en quelques clics et partagez vos souvenirs avec vos proches."
+    />
+    <meta
+      name="twitter:image"
+      content="https://gregaplay.com/og-gregaplay.jpg"
+    />
+
+    <!-- ⚠️ Laisse Vite gérer le manifest -->
+    <!-- <link rel="manifest" href="/manifest.json" /> -->
   </head>
+
   <body>
     <div id="root"></div>
 
-    <!-- ⚠️ IMPORTANT : point d'entrée Vite + React -->
+    <!-- ⚡ Point d’entrée Vite + React -->
     <script type="module" src="/src/main.jsx"></script>
   </body>
 </html>
