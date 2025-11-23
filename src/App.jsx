@@ -22,6 +22,8 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import PublicEventPage from "./pages/PublicEventPage";
 
+// ⚠️ AJOUT : page analytics admin
+import AdminStatsPage from "./pages/AdminStatsPage";
 
 // Layout
 import MainLayout from "./components/layout/MainLayout";
@@ -29,7 +31,7 @@ import MainLayout from "./components/layout/MainLayout";
 const App = () => {
   return (
     <>
-      {/* ✅ ToastContainer pour react-toastify (remplace react-hot-toast) */}
+      {/* Toast notifications */}
       <ToastContainer position="top-center" autoClose={3000} />
 
       <Routes>
@@ -50,6 +52,9 @@ const App = () => {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/e/:publicCode" element={<PublicEventPage />} />
+
+        {/* ⚠️ AJOUT : Route page admin */}
+        <Route path="/admin/stats" element={<AdminStatsPage />} />
       </Routes>
     </>
   );

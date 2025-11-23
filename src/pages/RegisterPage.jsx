@@ -18,21 +18,6 @@ const RegisterPage = () => {
               En quelques secondes, tu peux commencer à créer des événements,
               inviter tes proches et générer des vidéos souvenirs automatiquement.
             </p>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                <span>Crée un événement (anniversaire, mariage, surprise…).</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                <span>Invite tes amis à envoyer leurs vidéos facilement.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                <span>Laisse Grega Play assembler tout ça en une seule vidéo.</span>
-              </li>
-            </ul>
-
             <p className="mt-6 text-sm text-gray-700">
               Tu as déjà un compte ?{' '}
               <Link

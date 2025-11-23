@@ -68,21 +68,6 @@ ${formData.message}
               idée de fonctionnalité&nbsp;? Écris-nous et nous te répondons
               dès que possible.
             </p>
-            <ul className="space-y-2 text-sm text-gray-700">
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                <span>Support sur la création ou la gestion d’événements.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                <span>Retour sur un bug, une erreur ou une incompréhension.</span>
-              </li>
-              <li className="flex gap-2">
-                <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
-                <span>Partenariats, suggestions ou demandes spéciales.</span>
-              </li>
-            </ul>
-
             <div className="mt-6 text-sm text-gray-600 space-y-1">
               <p className="font-semibold text-gray-800">Email direct</p>
               <p>contact@grega-play.com</p>

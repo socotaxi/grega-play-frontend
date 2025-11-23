@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import supabase from '../../lib/supabaseClient';
 import { AnimatePresence, motion } from 'framer-motion';
+import AdminMenuLink from './AdminMenuLink';
 
 const MainLayout = ({ children }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -36,7 +37,6 @@ const MainLayout = ({ children }) => {
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
-      
       {/* HEADER PREMIUM */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
@@ -75,6 +75,9 @@ const MainLayout = ({ children }) => {
             <Link to="/contact" className="text-gray-600 hover:text-emerald-600 transition">
               Contact
             </Link>
+
+            {/* MENU ADMIN (desktop) */}
+            <AdminMenuLink />
 
             {/* Profil avec avatar */}
             {user ? (
@@ -186,6 +189,11 @@ const MainLayout = ({ children }) => {
               >
                 Contact
               </Link>
+
+              {/* MENU ADMIN (mobile) */}
+              <div onClick={() => setMenuOpen(false)}>
+                <AdminMenuLink />
+              </div>
 
               {/* CTA mobile */}
               {user ? (
