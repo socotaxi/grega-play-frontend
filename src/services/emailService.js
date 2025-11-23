@@ -1,14 +1,43 @@
-import supabase from '../lib/supabaseClient';
+// src/services/emailService.js
+
+// URL du backend et clé API (comme videoService / notificationService)
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const API_KEY = import.meta.env.VITE_BACKEND_API_KEY;
 
 /**
- * Email service for sending invitation emails
- * Uses Supabase Edge Functions or external email service
+ * Appel générique POST JSON vers le backend email
+ */
+async function postJson(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": API_KEY,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const text = await res.text().catch(() => "");
+
+  if (!res.ok) {
+    console.error("❌ Erreur HTTP email:", res.status, text);
+    throw new Error("Erreur API email");
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * Email service pour gérer les invitations (frontend)
+ * Le backend Node se charge d'envoyer l'email via SMTP Hostinger.
  */
 const emailService = {
   /**
-   * Generate HTML email template for event invitation
-   * @param {Object} invitationData - Invitation details
-   * @returns {string} HTML email template
+   * Génère le HTML de l’email d’invitation
    */
   generateInvitationEmailTemplate(invitationData) {
     const {
@@ -18,14 +47,17 @@ const emailService = {
       invitationLink,
       eventDeadline,
       personalMessage,
-      eventTheme
+      eventTheme,
     } = invitationData;
 
-    const formattedDeadline = new Date(eventDeadline).toLocaleDateString('fr-FR', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    const formattedDeadline = new Date(eventDeadline).toLocaleDateString(
+      "fr-FR",
+      {
+        year: "numeric",
+        month: "long",
+        day: "numeric",
+      }
+    );
 
     return `
 <!DOCTYPE html>
@@ -59,17 +91,23 @@ const emailService = {
             
             <div class="event-details">
                 <h3>📽️ ${eventTitle}</h3>
-                ${eventTheme ? `<p><strong>Thème :</strong> ${eventTheme}</p>` : ''}
-                <p><strong>Description :</strong> ${eventDescription || 'Partagez vos plus beaux moments en vidéo !'}</p>
+                ${eventTheme ? `<p><strong>Thème :</strong> ${eventTheme}</p>` : ""}
+                <p><strong>Description :</strong> ${
+                  eventDescription || "Partagez vos plus beaux moments en vidéo !"
+                }</p>
                 <p><strong>Date limite :</strong> ${formattedDeadline}</p>
             </div>
             
-            ${personalMessage ? `
+            ${
+              personalMessage
+                ? `
             <div class="personal-message">
                 <strong>Message personnel de ${organizerName} :</strong><br>
                 "${personalMessage}"
             </div>
-            ` : ''}
+            `
+                : ""
+            }
             
             <h3>🎯 Comment participer ?</h3>
             <ol>
@@ -99,82 +137,53 @@ const emailService = {
   },
 
   /**
-   * Send invitation email using Supabase Edge Function
-   * @param {Object} emailData - Email sending data
-   * @returns {Promise<boolean>} Success status
+   * Envoie 1 email d’invitation via le backend Node
+   * (le backend gère SMTP Hostinger)
    */
   async sendInvitationEmail(emailData) {
-    try {
-      const { to, subject, html, eventId, invitationToken } = emailData;
+    const { to, subject, html, eventId, invitationToken } = emailData;
 
-      console.log(`Attempting to send invitation email to ${to}`);
+    console.log(`Attempting to send invitation email to ${to}`);
 
-      // Try to use Supabase Edge Function for email sending
-      const { data, error } = await supabase.functions.invoke('send-email', {
-        body: {
-          email: to,
-          subject,
-          content: html
-        }
-      });
-
-      if (error) {
-        console.warn('Supabase Edge Function email failed, trying alternative method:', error);
-        
-        // Fallback: Store email in database for manual processing or batch sending
-        const { error: dbError } = await supabase
-          .from('email_queue')
-          .insert({
-            to_email: to,
-            subject,
-            html_content: html,
-            event_id: eventId,
-            invitation_token: invitationToken,
-            status: 'pending',
-            created_at: new Date().toISOString()
-          });
-
-        if (dbError) {
-          console.error('Failed to queue email:', dbError);
-          throw new Error('Failed to send invitation email');
-        }
-
-        console.log('Email queued for batch processing');
-        return true;
-      }
-
-      console.log('Email sent successfully:', data);
-      return true;
-    } catch (error) {
-      console.error('Error sending invitation email:', error);
-      throw error;
+    if (!API_BASE_URL) {
+      console.error("VITE_BACKEND_URL non défini – impossible d'envoyer l'email.");
+      throw new Error("BACKEND_URL manquant");
     }
+
+    await postJson(`${API_BASE_URL}/api/email/invite`, {
+      to,
+      subject,
+      html,
+      eventId,
+      invitationToken,
+    });
+
+    console.log("Email sent (via backend Node) to:", to);
+    return true;
   },
 
   /**
-   * Send multiple invitation emails
-   * @param {Array} invitations - Array of invitation data
-   * @returns {Promise<Object>} Results summary
+   * Envoie plusieurs invitations (boucle sur sendInvitationEmail)
    */
   async sendBulkInvitations(invitations) {
     const results = {
       success: [],
       failed: [],
-      total: invitations.length
+      total: invitations.length,
     };
 
     for (const invitation of invitations) {
       try {
         await this.sendInvitationEmail(invitation);
         results.success.push(invitation.to);
-        
-        // Add small delay to avoid rate limiting
-        await new Promise(resolve => setTimeout(resolve, 100));
+
+        // Petit délai pour éviter un éventuel rate limiting SMTP
+        await new Promise((resolve) => setTimeout(resolve, 100));
       } catch (error) {
         console.error(`Failed to send email to ${invitation.to}:`, error);
         results.failed.push({
           email: invitation.to,
-          error: error.message
+          error: error.message,
         });
       }
     }
@@ -183,27 +192,23 @@ const emailService = {
   },
 
   /**
-   * Create invitation link
-   * @param {string} token - Invitation token
-   * @returns {string} Full invitation URL
+   * Crée le lien d’invitation (part de la base URL publique de l’app)
    */
   createInvitationLink(token) {
     const baseUrl =
       import.meta.env.VITE_APP_BASE_URL ||
-      (typeof window !== 'undefined' ? window.location.origin : '') ||
-      'https://grega-play.com';
+      (typeof window !== "undefined" ? window.location.origin : "") ||
+      "https://grega-play.com";
+
     return `${baseUrl}/invitation/${token}`;
   },
 
   /**
-   * Generate email subject line
-   * @param {string} eventTitle - Event title
-   * @param {string} organizerName - Organizer name
-   * @returns {string} Email subject
+   * Génère l’objet de l’email
    */
   generateEmailSubject(eventTitle, organizerName) {
     return `🎬 Invitation: ${eventTitle} - Partagez votre vidéo avec ${organizerName}`;
-  }
+  },
 };
 
 export default emailService;
