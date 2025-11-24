@@ -26,7 +26,7 @@ function PublicFinalVideoPage() {
         setData(json);
       } catch (err) {
         console.error("Erreur chargement vidéo finale:", err);
-        setError(err.message || "Erreur lors du chargement");
+        setError(err.message || "Impossible de charger la vidéo finale. Vérifie ta connexion ou réessaie dans quelques instants.");
       } finally {
         setLoading(false);
       }
