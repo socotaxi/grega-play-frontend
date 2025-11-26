@@ -35,10 +35,9 @@ const RegisterPage = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-1 text-center md:text-left">
                 Inscription
               </h2>
-              <p className="text-xs text-gray-500 mb-5 text-center md:text-left">
-                Renseigne ton email et ton mot de passe pour créer ton compte Grega Play.
+              <p className="text-xs text-gray-500 mb-3 text-center md:text-left">
+                Crée ton compte avec ton <span className="font-medium">email</span> et un mot de passe sécurisé.
               </p>
-
               <RegisterForm />
             </div>
           </div>

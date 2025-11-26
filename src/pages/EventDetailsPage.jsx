@@ -91,22 +91,6 @@ const EventDetailsPage = () => {
     fetchEvent();
   }, [fetchEvent]);
 
-  const handleGenerateFinalVideo = async () => {
-    if (!window.confirm("Voulez-vous générer la vidéo finale ?")) return;
-
-    try {
-      setGenerating(true);
-      await videoService.generateFinalVideo(id);
-      toast.success("Vidéo finale générée avec succès.");
-      fetchEvent();
-    } catch (err) {
-      console.error("Erreur génération vidéo:", err);
-      toast.error("Erreur lors de la génération de la vidéo.");
-    } finally {
-      setGenerating(false);
-    }
-  };
-
   // 🆕 gérer le toggle des notifications pour cet événement
   const handleToggleNotifications = async () => {
     if (!event) return;
@@ -292,33 +276,6 @@ const EventDetailsPage = () => {
             {/* Média */}
             {event.media_url && renderMedia(event.media_url)}
 
-            {/* Bloc paramètres (durées) s'ils existent */}
-            {(event.video_duration || event.max_clip_duration) && (
-              <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-xs text-gray-600">
-                <p className="font-semibold text-gray-700 mb-1">
-                  Paramètres de la vidéo
-                </p>
-                <div className="flex flex-wrap gap-4">
-                  {event.video_duration && (
-                    <span>
-                      Durée finale max&nbsp;:{" "}
-                      <span className="font-medium">
-                        {event.video_duration} secondes
-                      </span>
-                    </span>
-                  )}
-                  {event.max_clip_duration && (
-                    <span>
-                      Durée max d&apos;un clip&nbsp;:{" "}
-                      <span className="font-medium">
-                        {event.max_clip_duration} secondes
-                      </span>
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* Lien de partage */}
             {event.public_code && (
               <div className="border-t border-gray-100 pt-4">
@@ -400,19 +357,9 @@ const EventDetailsPage = () => {
                 className="w-full sm:w-auto"
               >
                 <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 bg-purple-600 hover:bg-purple-700">
-                  Voir les vidéos
+                  Voir les vidéos & générer le montage
                 </Button>
               </Link>
-
-              {isOwner && (
-                <Button
-                  onClick={handleGenerateFinalVideo}
-                  disabled={generating}
-                  className="w-full sm:w-auto text-sm font-semibold py-2.5 bg-green-600 hover:bg-green-700 disabled:opacity-60"
-                >
-                  {generating ? "Génération..." : "Générer la vidéo finale"}
-                </Button>
-              )}
             </div>
           </div>
 

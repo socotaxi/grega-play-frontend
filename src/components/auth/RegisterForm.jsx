@@ -3,29 +3,89 @@ import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import supabase from "../../lib/supabaseClient";
 import Button from "../ui/Button";
+import { parsePhoneNumberFromString } from "libphonenumber-js";
+
+// Options pays (style Leetchi : liste déroulante)
+const countryOptions = [
+  { value: "", label: "Sélectionne ton pays" },
+  { value: "Congo - Brazzaville", label: "Congo - Brazzaville" },
+  { value: "Congo - Kinshasa", label: "Congo - Kinshasa" },
+  { value: "France", label: "France" },
+  { value: "Belgique", label: "Belgique" },
+  { value: "Suisse", label: "Suisse" },
+  { value: "Canada", label: "Canada" },
+  { value: "États-Unis", label: "États-Unis" },
+];
+
+// Options indicatif téléphone (style Leetchi : préfixe international)
+const phoneCountryOptions = [
+  { value: "+242", label: "🇨🇬 +242" },
+  { value: "+33", label: "🇫🇷 +33" },
+  { value: "+32", label: "🇧🇪 +32" },
+  { value: "+41", label: "🇨🇭 +41" },
+  { value: "+1", label: "🇺🇸 +1" },
+];
 
 const RegisterForm = () => {
   const navigate = useNavigate();
+
+  // Listes pour la date
+  const currentYear = new Date().getFullYear();
+  const years = Array.from({ length: 120 }, (_, idx) => currentYear - idx); // 120 ans de recul
+  const days = Array.from({ length: 31 }, (_, idx) => idx + 1);
+  const months = [
+    { value: 1, label: "Janvier" },
+    { value: 2, label: "Février" },
+    { value: 3, label: "Mars" },
+    { value: 4, label: "Avril" },
+    { value: 5, label: "Mai" },
+    { value: 6, label: "Juin" },
+    { value: 7, label: "Juillet" },
+    { value: 8, label: "Août" },
+    { value: 9, label: "Septembre" },
+    { value: 10, label: "Octobre" },
+    { value: 11, label: "Novembre" },
+    { value: 12, label: "Décembre" },
+  ];
+
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
-    birthDate: "",
+    // Date
+    birth_day: "",
+    birth_month: "",
+    birth_year: "",
+    // Genre
+    gender: "",
+    // Pays + téléphone “façon Leetchi”
     country: "",
-    phone: "",
+    phoneCountryCode: "+242",
+    phoneNumber: "",
+    // Auth
     email: "",
     password: "",
     confirmPassword: "",
     acceptNews: false,
     acceptTerms: false,
   });
+
   const [loading, setLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      };
+
+      if (name === "phoneNumber" || name === "phoneCountryCode") {
+        setPhoneError("");
+      }
+
+      return updated;
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -41,11 +101,38 @@ const RegisterForm = () => {
       return;
     }
 
+    // Construire la date de naissance au format YYYY-MM-DD
+    let birth_date = null;
+    if (formData.birth_day && formData.birth_month && formData.birth_year) {
+      const day = String(formData.birth_day).padStart(2, "0");
+      const month = String(formData.birth_month).padStart(2, "0");
+      const year = String(formData.birth_year);
+      birth_date = `${year}-${month}-${day}`;
+    }
+
+    // Construire et valider le téléphone (E.164)
+    let phoneE164 = null;
+
+    if (formData.phoneNumber) {
+      const code = formData.phoneCountryCode || "";
+      const rawNumber = formData.phoneNumber.trim().replace(/\s+/g, " ");
+      const phoneFull = code ? `${code} ${rawNumber}` : rawNumber;
+
+      const parsed = parsePhoneNumberFromString(phoneFull);
+      if (!parsed || !parsed.isValid()) {
+        setPhoneError("Numéro de téléphone invalide. Vérifie l’indicatif et le numéro.");
+        toast.error("Numéro de téléphone invalide. Vérifie l’indicatif et le numéro.");
+        return;
+      }
+
+      // format E.164 : +242xxxxxx
+      phoneE164 = parsed.number;
+    }
+
     setLoading(true);
     try {
       const fullName = `${formData.firstName} ${formData.lastName}`.trim();
 
-      // Création de l’utilisateur dans auth.users avec métadonnées
       const { data, error } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -54,10 +141,11 @@ const RegisterForm = () => {
             first_name: formData.firstName || null,
             last_name: formData.lastName || null,
             full_name: fullName || null,
-            birth_date: formData.birthDate || null, // format YYYY-MM-DD
+            birth_date: birth_date,
             country: formData.country || null,
-            phone: formData.phone || null,
+            phone: phoneE164 || null,
             accept_news: formData.acceptNews ?? false,
+            gender: formData.gender || null,
           },
         },
       });
@@ -100,37 +188,138 @@ const RegisterForm = () => {
         </div>
       </div>
 
+      {/* Date de naissance : Jour / Mois / Année */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Date de naissance</label>
-        <input
-          type="date"
-          name="birthDate"
-          value={formData.birthDate}
-          onChange={handleChange}
-          className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
-        />
+        <div className="mt-1 flex gap-2">
+          <select
+            name="birth_day"
+            value={formData.birth_day}
+            onChange={handleChange}
+            className="w-1/3 border border-gray-300 px-2 py-2 rounded-md shadow-sm sm:text-sm bg-white"
+          >
+            <option value="">Jour</option>
+            {days.map((day) => (
+              <option key={day} value={day}>
+                {day}
+              </option>
+            ))}
+          </select>
+          <select
+            name="birth_month"
+            value={formData.birth_month}
+            onChange={handleChange}
+            className="w-1/3 border border-gray-300 px-2 py-2 rounded-md shadow-sm sm:text-sm bg-white"
+          >
+            <option value="">Mois</option>
+            {months.map((m) => (
+              <option key={m.value} value={m.value}>
+                {m.label}
+              </option>
+            ))}
+          </select>
+          <select
+            name="birth_year"
+            value={formData.birth_year}
+            onChange={handleChange}
+            className="w-1/3 border border-gray-300 px-2 py-2 rounded-md shadow-sm sm:text-sm bg-white"
+          >
+            <option value="">Année</option>
+            {years.map((y) => (
+              <option key={y} value={y}>
+                {y}
+              </option>
+            ))}
+          </select>
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          Choisis ton jour, ton mois et ton année.
+        </p>
       </div>
 
+      {/* Genre : Femme / Homme */}
+      <div>
+        <label className="block text-sm font-medium text-gray-700">Genre</label>
+        <div className="mt-2 flex gap-4">
+          <label className="inline-flex items-center text-sm text-gray-700">
+            <input
+              type="radio"
+              name="gender"
+              value="female"
+              checked={formData.gender === "female"}
+              onChange={handleChange}
+              className="h-4 w-4 text-indigo-600 border-gray-300"
+            />
+            <span className="ml-2">Femme</span>
+          </label>
+          <label className="inline-flex items-center text-sm text-gray-700">
+            <input
+              type="radio"
+              name="gender"
+              value="male"
+              checked={formData.gender === "male"}
+              onChange={handleChange}
+              className="h-4 w-4 text-indigo-600 border-gray-300"
+            />
+            <span className="ml-2">Homme</span>
+          </label>
+        </div>
+        <p className="mt-1 text-xs text-gray-500">
+          Optionnel, c’est juste pour personnaliser ton expérience Grega Play.
+        </p>
+      </div>
+
+      {/* Pays façon Leetchi : select */}
       <div>
         <label className="block text-sm font-medium text-gray-700">Pays</label>
-        <input
-          type="text"
+        <select
           name="country"
           value={formData.country}
           onChange={handleChange}
-          className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
-        />
+          required
+          className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm bg-white"
+        >
+          {countryOptions.map((c) => (
+            <option key={c.value || "placeholder"} value={c.value}>
+              {c.label}
+            </option>
+          ))}
+        </select>
       </div>
 
+      {/* Téléphone façon Leetchi : indicatif + numéro */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Téléphone</label>
-        <input
-          type="text"
-          name="phone"
-          value={formData.phone}
-          onChange={handleChange}
-          className="mt-1 block w-full border border-gray-300 px-3 py-2 rounded-md shadow-sm sm:text-sm"
-        />
+        <label className="block text-sm font-medium text-gray-700">Téléphone portable</label>
+        <div className="mt-1 flex">
+          <select
+            name="phoneCountryCode"
+            value={formData.phoneCountryCode}
+            onChange={handleChange}
+            className="border border-gray-300 rounded-md bg-white px-2 py-2 text-sm shadow-sm mr-2 min-w-[96px]"
+          >
+            {phoneCountryOptions.map((p) => (
+              <option key={p.value} value={p.value}>
+                {p.label}
+              </option>
+            ))}
+          </select>
+          <input
+            type="tel"
+            name="phoneNumber"
+            value={formData.phoneNumber}
+            onChange={handleChange}
+            className={`flex-1 border px-3 py-2 rounded-md shadow-sm sm:text-sm ${
+              phoneError ? "border-red-500" : "border-gray-300"
+            }`}
+            placeholder="06 12 34 56 78"
+          />
+        </div>
+        {phoneError && (
+          <p className="mt-1 text-xs text-red-600">{phoneError}</p>
+        )}
+        <p className="mt-1 text-xs text-gray-500">
+          Nous utilisons ton numéro pour sécuriser ton compte, comme Leetchi.
+        </p>
       </div>
 
       <div>
@@ -158,7 +347,9 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Confirmer le mot de passe
+        </label>
         <input
           type="password"
           name="confirmPassword"
@@ -177,7 +368,9 @@ const RegisterForm = () => {
           onChange={handleChange}
           className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
         />
-        <label className="ml-2 block text-sm text-gray-900">Recevoir les actualités et offres</label>
+        <label className="ml-2 block text-sm text-gray-900">
+          Recevoir les actualités et offres
+        </label>
       </div>
 
       <div className="flex items-center">

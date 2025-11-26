@@ -11,6 +11,10 @@ import supabase from '../lib/supabaseClient';
 import activityService from "../services/activityService";
 import { useAuth } from "../context/AuthContext";
 
+const MAX_VIDEO_DURATION_SECONDS = 30;
+const MAX_VIDEO_SIZE_MB = 50;
+const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
+
 const SubmitVideoPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
@@ -37,6 +41,7 @@ const SubmitVideoPage = () => {
         const eventData = await eventService.getEvent(eventId);
         setEvent(eventData);
 
+        // Messages d'info si déjà fermé / expiré
         if (eventData.status !== 'open') {
           setError("Cet événement n'accepte plus de vidéos.");
         }
@@ -79,13 +84,37 @@ const SubmitVideoPage = () => {
     }
   }, [success, navigate, eventId]);
 
+  // 🔒 Calcul central : évènement expiré / fermé
+  const now = new Date();
+  const isEventExpired = event?.deadline
+    ? new Date(event.deadline) < now
+    : false;
+  const isEventClosed = event?.status && event.status !== "open";
+  const canUpload = !isEventExpired && !isEventClosed;
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // 🔒 Double garde-fou : si l'événement est expiré/fermé, on bloque
+    if (!canUpload) {
+      setError("Cet événement est terminé. Vous ne pouvez plus envoyer de vidéo.");
+      e.target.value = null;
+      return;
+    }
+
     if (!file.type.startsWith('video/')) {
       setError('Veuillez sélectionner un fichier vidéo.');
+      e.target.value = null;
+      return;
+    }
+
+    // 🔒 Contrôle du poids côté frontend
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      e.target.value = null;
       return;
     }
 
@@ -94,8 +123,8 @@ const SubmitVideoPage = () => {
     video.onloadedmetadata = () => {
       window.URL.revokeObjectURL(video.src);
 
-      if (video.duration > 10) {
-        setError("⛔ La vidéo ne doit pas dépasser 10 secondes.");
+      if (video.duration > MAX_VIDEO_DURATION_SECONDS) {
+        setError(`⛔ La vidéo ne doit pas dépasser ${MAX_VIDEO_DURATION_SECONDS} secondes.`);
         setSelectedFile(null);
         setPreviewUrl(null);
         e.target.value = null;
@@ -108,7 +137,6 @@ const SubmitVideoPage = () => {
     video.src = URL.createObjectURL(file);
   };
 
-
   const handleDeleteVideo = async () => {
     if (!window.confirm('Supprimer votre vidéo ?')) return;
     try {
@@ -120,13 +148,32 @@ const SubmitVideoPage = () => {
     }
   };
 
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
+    if (!event) {
+      setError("Événement introuvable.");
+      return;
+    }
+
+    // 🔒 Re-vérifier côté front juste avant envoi
+    const nowLocal = new Date();
+    const endDate = event.deadline ? new Date(event.deadline) : null;
+
+    if (!endDate || endDate < nowLocal || event.status !== "open") {
+      setError("Cet événement est terminé ou expiré. Vous ne pouvez plus envoyer de vidéo.");
+      return;
+    }
+
     if (!selectedFile || !(selectedFile instanceof File)) {
       setError("Veuillez sélectionner un fichier vidéo valide.");
+      return;
+    }
+
+    // Double-check poids avant envoi
+    if (selectedFile.size > MAX_VIDEO_SIZE_BYTES) {
+      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
       return;
     }
 
@@ -148,7 +195,7 @@ const SubmitVideoPage = () => {
     // 🟦 FIN : simulation de progression
 
     try {
-      // Upload de la vidéo
+      // Upload de la vidéo (passera ensuite par les garde-fous backend)
       await videoService.uploadVideo(eventId, user.id, selectedFile, participantName);
 
       // Log dans le feed d'activité
@@ -173,7 +220,6 @@ const SubmitVideoPage = () => {
     }
   };
 
-
   if (loading) return <Loading fullPage />;
 
   if (success) {
@@ -195,12 +241,17 @@ const SubmitVideoPage = () => {
     ? supabase.storage.from('videos').getPublicUrl(existingVideo.storage_path).data.publicUrl
     : null;
 
-
   return (
     <MainLayout>
       <div className="max-w-3xl mx-auto px-4 py-8">
         <h1 className="text-2xl font-bold text-gray-900 mb-4">{event?.title}</h1>
-        {event?.theme && <p className="text-sm text-gray-500 mb-6">Thème : {event.theme}</p>}
+        {event?.theme && <p className="text-sm text-gray-500 mb-2">Thème : {event.theme}</p>}
+
+        {(isEventExpired || isEventClosed) && (
+          <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md">
+            Cet événement est terminé. Vous ne pouvez plus envoyer de nouvelle vidéo.
+          </div>
+        )}
 
         {existingVideo && (
           <div className="mb-6 bg-white p-4 border rounded shadow">
@@ -222,7 +273,8 @@ const SubmitVideoPage = () => {
             <p className="mt-1 text-gray-900 font-medium">{participantName}</p>
           </div>
 
-          {!existingVideo && (
+          {/* On n'affiche le bloc d'upload QUE si l'événement accepte encore des vidéos */}
+          {!existingVideo && canUpload && (
             <>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Vidéo</label>
@@ -230,8 +282,11 @@ const SubmitVideoPage = () => {
                   type="file"
                   accept="video/*"
                   onChange={handleFileChange}
-                  disabled={submitting}
+                  disabled={submitting || !canUpload}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Durée max : {MAX_VIDEO_DURATION_SECONDS} secondes · Taille max : {MAX_VIDEO_SIZE_MB} Mo.
+                </p>
                 {previewUrl && (
                   <video src={previewUrl} controls className="mt-4 w-full rounded" />
                 )}
@@ -256,7 +311,7 @@ const SubmitVideoPage = () => {
                 <Button
                   type="submit"
                   loading={submitting}
-                  disabled={submitting || !selectedFile}
+                  disabled={submitting || !selectedFile || !canUpload}
                 >
                   Soumettre la vidéo
                 </Button>

@@ -1,3 +1,4 @@
+// src/pages/FinalVideoPage.jsx
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
@@ -33,6 +34,7 @@ const FinalVideoPage = () => {
   const [error, setError] = useState(null);
   const [submittedVideos, setSubmittedVideos] = useState([]);
   const [generationLabel, setGenerationLabel] = useState("");
+  const [selectedVideoIds, setSelectedVideoIds] = useState([]);
 
   const isOwner = user && event && user.id === event.user_id;
 
@@ -184,14 +186,41 @@ const FinalVideoPage = () => {
     try {
       await videoService.deleteVideo(videoId);
       setSubmittedVideos(prev => prev.filter(v => v.id !== videoId));
+      setSelectedVideoIds(prev => prev.filter(id => id !== videoId));
     } catch (err) {
       console.error("Erreur suppression vidéo :", err);
       alert("Erreur lors de la suppression de la vidéo.");
     }
   };
 
+  const toggleSelectVideo = (videoId) => {
+    if (!isOwner) return;
+
+    setSelectedVideoIds((prev) => {
+      if (prev.includes(videoId)) {
+        return prev.filter((id) => id !== videoId);
+      }
+      return [...prev, videoId];
+    });
+  };
+
   const handleGenerateVideo = async () => {
     if (!event || !user) return;
+
+    // Règles de base : 2 à 5 vidéos sélectionnées en gratuit
+    if (!Array.isArray(selectedVideoIds) || selectedVideoIds.length < 2) {
+      setError("Sélectionne au moins 2 vidéos pour générer la vidéo finale.");
+      toast.error("Sélectionne au moins 2 vidéos.");
+      return;
+    }
+
+    const isPremium = false; // à remplacer plus tard quand le Premium sera implémenté
+
+    if (!isPremium && selectedVideoIds.length > 5) {
+      setError("La version gratuite permet d'utiliser au maximum 5 vidéos. Passe à Premium pour en utiliser davantage.");
+      toast.error("Maximum 5 vidéos en version gratuite.");
+      return;
+    }
 
     let timer;
     try {
@@ -226,7 +255,7 @@ const FinalVideoPage = () => {
       }, 600); // tick plus espacé → plus lent
       // 🟦 fin barre lente
 
-      const res = await videoService.generateFinalVideo(eventId);
+      const res = await videoService.generateFinalVideo(eventId, selectedVideoIds);
 
       if (timer) clearInterval(timer);
       setGenerationProgress((prev) => (prev < 90 ? 90 : prev));
@@ -277,6 +306,18 @@ const FinalVideoPage = () => {
     event?.public_code
       ? `${window.location.origin}/player/${event.public_code}`
       : finalVideo || "";
+
+  const selectionInfo =
+    isOwner && submittedVideos.length > 0
+      ? `Vidéos sélectionnées : ${selectedVideoIds.length} (min 2, max 5 en gratuit)`
+      : "";
+
+  const generateDisabled =
+    processing ||
+    !isOwner ||
+    !canStartProcessing ||
+    selectedVideoIds.length < 2 ||
+    selectedVideoIds.length > 5;
 
   return (
     <MainLayout>
@@ -371,19 +412,52 @@ const FinalVideoPage = () => {
                 </div>
               )}
 
-              <div className="mt-5 text-center">
-                <Button onClick={handleGenerateVideo} loading={processing} disabled={processing}>
-                  🔄 Régénérer la vidéo
-                </Button>
-              </div>
+              {isOwner && submittedVideos.length > 0 && (
+                <div className="mt-6 text-center">
+                  <p className="text-sm text-gray-600 mb-2">
+                    Tu peux sélectionner 2 à 5 vidéos ci-dessous pour régénérer la vidéo finale.
+                  </p>
+                  <p className="text-xs text-gray-500 mb-3">{selectionInfo}</p>
+                  <Button onClick={handleGenerateVideo} loading={processing} disabled={generateDisabled}>
+                    🔄 Régénérer la vidéo avec la sélection
+                  </Button>
+                </div>
+              )}
+
+              {/* Barre de progression */}
+              {processing && generationProgress > 0 && (
+                <div className="mt-4">
+                  {generationLabel && (
+                    <p className="mb-1 text-sm text-gray-600 text-left">
+                      {generationLabel}
+                    </p>
+                  )}
+                  <div className="w-full bg-gray-200 rounded-full h-3">
+                    <div
+                      className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
+                      style={{ width: `${generationProgress}%` }}
+                    ></div>
+                  </div>
+                  <p className="mt-1 text-xs text-gray-500 text-right">
+                    {Math.round(generationProgress)}%
+                  </p>
+                </div>
+              )}
             </>
-          ) : submittedVideos.length > 0 && canStartProcessing ? (
+          ) : submittedVideos.length > 0 && canStartProcessing && isOwner ? (
             <div className="text-center">
               <h3 className="mt-2 text-lg font-medium text-gray-900">Prêt pour le montage</h3>
-              <p className="mt-1 text-sm text-gray-500">{submittedVideos.length} vidéos ont été soumises.</p>
+              <p className="mt-1 text-sm text-gray-500">
+                {submittedVideos.length} vidéos ont été soumises. Sélectionne entre 2 et 5 vidéos ci-dessous pour créer la vidéo finale.
+              </p>
+              <p className="mt-1 text-xs text-gray-500">{selectionInfo}</p>
               <div className="mt-5">
-                <Button onClick={handleGenerateVideo} loading={processing} disabled={processing}>
-                  Générer la vidéo
+                <Button
+                  onClick={handleGenerateVideo}
+                  loading={processing}
+                  disabled={generateDisabled}
+                >
+                  Générer la vidéo finale
                 </Button>
               </div>
 
@@ -426,8 +500,21 @@ const FinalVideoPage = () => {
               {submittedVideos.map((video, index) => {
                 const publicUrl = getPublicVideoUrl(video.storage_path);
 
+                const isSelected = selectedVideoIds.includes(video.id);
+
                 return (
                   <div key={video.id || index} className="border rounded-lg shadow-sm p-2 bg-white">
+                    {isOwner && canStartProcessing && (
+                      <label className="flex items-center gap-2 mb-2 text-xs text-gray-700 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
+                          checked={isSelected}
+                          onChange={() => toggleSelectVideo(video.id)}
+                        />
+                        <span>Inclure dans le montage</span>
+                      </label>
+                    )}
                     <video
                       src={publicUrl}
                       controls

@@ -14,10 +14,6 @@ const LoginPage = () => {
             <h1 className="text-3xl font-bold text-gray-900 mb-3">
               Connecte-toi à Grega Play
             </h1>
-            <p className="text-base text-gray-600 mb-4">
-              Retrouve tous tes événements, les vidéos de tes proches et tes montages
-              déjà générés. La connexion te permet aussi de créer de nouveaux projets.
-            </p>
             <ul className="space-y-2 text-sm text-gray-700">
               <li className="flex gap-2">
                 <span className="mt-1 h-2 w-2 rounded-full bg-indigo-500" />
@@ -50,10 +46,16 @@ const LoginPage = () => {
               <h2 className="text-xl font-semibold text-gray-900 mb-1 text-center md:text-left">
                 Connexion
               </h2>
+              <p className="text-xs text-gray-500 mb-3 text-center md:text-left">
+                Utilise ton <span className="font-medium">email ou ton numéro de téléphone</span> 
+                comme identifiant.
+              </p>
               <p className="text-xs text-gray-500 mb-5 text-center md:text-left">
-                Connecte-toi avec ton email pour continuer ton expérience Grega Play.
+                Tu peux aussi te connecter avec tes comptes <span className="font-medium">Google</span> ou <span className="font-medium">Whatsapp</span>,
+                si ces options sont activées sur ton compte.
               </p>
 
+              {/* Le formulaire gère les champs (email / téléphone / social logins) */}
               <LoginForm />
             </div>
           </div>

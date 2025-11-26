@@ -2,7 +2,7 @@
 import supabase from "../lib/supabaseClient";
 
 // Règles de sécurité côté frontend pour les vidéos
-const MAX_VIDEO_SIZE_MB = 100; // taille max autorisée (à ajuster si besoin)
+const MAX_VIDEO_SIZE_MB = 50; // taille max autorisée (à ajuster si besoin)
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime"]; // MP4, MOV
@@ -190,9 +190,16 @@ const videoService = {
   /**
    * Déclenche la génération de la vidéo finale via ton backend
    * @param {string} eventId - UUID de l'événement
+   * @param {string[]} selectedVideoIds - Liste des IDs de vidéos à utiliser
    */
-  async generateFinalVideo(eventId) {
+  async generateFinalVideo(eventId, selectedVideoIds) {
     try {
+      const payload = { eventId };
+
+      if (Array.isArray(selectedVideoIds) && selectedVideoIds.length > 0) {
+        payload.selectedVideoIds = selectedVideoIds;
+      }
+
       const response = await fetch(
         `${import.meta.env.VITE_BACKEND_URL}/api/videos/process`,
         {
@@ -201,7 +208,7 @@ const videoService = {
             "Content-Type": "application/json",
             "x-api-key": import.meta.env.VITE_BACKEND_API_KEY, // 🔐 clé API ajoutée pour le backend
           },
-          body: JSON.stringify({ eventId }),
+          body: JSON.stringify(payload),
         }
       );
 

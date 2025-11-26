@@ -22,6 +22,18 @@ const generatePublicCode = (length = 12) => {
   return code;
 };
 
+// 🔹 Vérifie si une date est dans le passé (en ne regardant que le jour)
+const isPastDate = (dateString) => {
+  if (!dateString) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const selected = new Date(dateString);
+  selected.setHours(0, 0, 0, 0);
+
+  return selected < today;
+};
+
 const CreateEventPage = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
@@ -83,6 +95,12 @@ const CreateEventPage = () => {
       return;
     }
 
+    // 🔹 Vérifier que la date n'est pas dans le passé
+    if (isPastDate(formData.endDate)) {
+      toast.error("La date limite ne peut pas être dans le passé");
+      return;
+    }
+
     const publicCode = generatePublicCode();
 
     setLoading(true);
@@ -123,16 +141,15 @@ const CreateEventPage = () => {
       });
 
       // 🆕 si l'utilisateur a choisi de recevoir les notifs, on l'abonne aux push
-   if (formData.enableNotifications && user?.id) {
-  console.log("🟢 Appel subscribeToPush pour userId:", user.id);
-  try {
-    await subscribeToPush(user.id);
-    console.log("✅ subscribeToPush terminé sans erreur");
-  } catch (err) {
-    console.error("❌ Erreur abonnement notifications push:", err);
-  }
-}
-
+      if (formData.enableNotifications && user?.id) {
+        console.log("🟢 Appel subscribeToPush pour userId:", user.id);
+        try {
+          await subscribeToPush(user.id);
+          console.log("✅ subscribeToPush terminé sans erreur");
+        } catch (err) {
+          console.error("❌ Erreur abonnement notifications push:", err);
+        }
+      }
 
       await invitationService.addInvitations(
         event.id,
@@ -159,6 +176,9 @@ const CreateEventPage = () => {
       setLoading(false);
     }
   };
+
+  // 🔹 pour l'attribut min du champ date
+  const todayString = new Date().toISOString().split("T")[0];
 
   return (
     <MainLayout>
@@ -276,37 +296,11 @@ const CreateEventPage = () => {
                   </p>
                 </div>
 
-                {/* Durées & Date limite */}
+                {/* Date limite & notifications (sans champs de durée) */}
                 <div className="bg-gray-50 rounded-xl border border-gray-200 px-3 py-3 space-y-3">
                   <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                     Paramètres de la vidéo
                   </p>
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-[11px] font-medium text-gray-600">
-                        Durée finale max (secondes)
-                      </label>
-                      <input
-                        type="number"
-                        name="videoDuration"
-                        value={formData.videoDuration}
-                        onChange={handleChange}
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-[11px] font-medium text-gray-600">
-                        Durée max d&apos;un clip (secondes)
-                      </label>
-                      <input
-                        type="number"
-                        name="maxClipDuration"
-                        value={formData.maxClipDuration}
-                        onChange={handleChange}
-                        className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      />
-                    </div>
-                  </div>
 
                   <div>
                     <label className="block text-[11px] font-medium text-gray-600">
@@ -318,6 +312,7 @@ const CreateEventPage = () => {
                       value={formData.endDate}
                       onChange={handleChange}
                       required
+                      min={todayString} // 🔹 Empêche de choisir une date passée
                       className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>

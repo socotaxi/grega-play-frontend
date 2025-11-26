@@ -2,6 +2,7 @@ import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
+import VerifyPhonePage from "./pages/VerifyPhonePage";
 import "react-toastify/dist/ReactToastify.css";
 
 // Pages
@@ -56,6 +57,7 @@ const App = () => {
         <Route path="/player/:publicCode" element={<PublicFinalVideoPage />} />
         {/* ⚠️ Route page admin */}
         <Route path="/admin/stats" element={<AdminStatsPage />} />
+        <Route path="/verify-phone" element={<VerifyPhonePage />} />
       </Routes>
     </>
   );

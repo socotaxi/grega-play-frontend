@@ -28,37 +28,31 @@ export const AuthProvider = ({ children }) => {
     return () => listener?.subscription?.unsubscribe();
   }, []);
 
-     const login = async (email, password) => {
+  // Connexion email / mot de passe
+  const login = async (email, password) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) throw error;
   };
 
+  // Inscription email / mot de passe
   const signup = async (email, password) => {
     const { error } = await supabase.auth.signUp({ email, password });
     if (error) throw error;
   };
 
+  // Connexion Google (OAuth)
   const loginWithGoogle = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "google",
-    options: { redirectTo: `${window.location.origin}/dashboard` },
-  });
-  if (error) throw error;
-};
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: { redirectTo: `${window.location.origin}/dashboard` },
+    });
+    if (error) throw error;
+  };
 
-const loginWithFacebook = async () => {
-  const { error } = await supabase.auth.signInWithOAuth({
-    provider: "facebook",
-    options: {
-      redirectTo: `${window.location.origin}/dashboard`,
-    },
-  });
-  if (error) throw error;
-};
-
+  // Déconnexion
   const logout = async () => {
     try {
-      const { error } = await supabase.auth.signOut({ scope: "local" }); // ✅ uniquement local
+      const { error } = await supabase.auth.signOut({ scope: "local" });
       if (error) throw error;
     } catch (err) {
       console.error("Erreur logout:", err.message);
@@ -66,7 +60,15 @@ const loginWithFacebook = async () => {
     }
   };
 
-  const value = { user, session, login, signup, loginWithGoogle, loginWithFacebook, logout, loading };
+  const value = {
+    user,
+    session,
+    loading,
+    login,
+    signup,
+    loginWithGoogle,
+    logout,
+  };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

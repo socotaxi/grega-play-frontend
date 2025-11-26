@@ -15,6 +15,7 @@
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.9",
     "goober": "^2.1.16",
+    "libphonenumber-js": "^1.12.29",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-icons": "^5.5.0",
