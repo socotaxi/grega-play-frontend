@@ -318,7 +318,7 @@ const RegisterForm = () => {
           <p className="mt-1 text-xs text-red-600">{phoneError}</p>
         )}
         <p className="mt-1 text-xs text-gray-500">
-          Nous utilisons ton numéro pour sécuriser ton compte, comme Leetchi.
+          Nous utilisons ton numéro pour sécuriser ton compte.
         </p>
       </div>
 
