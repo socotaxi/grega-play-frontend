@@ -256,7 +256,13 @@ const SubmitVideoPage = () => {
         {existingVideo && (
           <div className="mb-6 bg-white p-4 border rounded shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-2">🎬 Vidéo déjà envoyée</h3>
-            <video controls src={videoUrl} className="w-full h-auto rounded mb-3" />
+            <div className="w-full aspect-w-9 aspect-h-16 mb-3 rounded-md shadow-sm overflow-hidden">
+              <video
+                controls
+                src={videoUrl}
+                className="w-full h-full object-cover"
+              />
+            </div>
             <Button variant="danger" onClick={handleDeleteVideo}>Supprimer ma vidéo</Button>
           </div>
         )}
@@ -288,7 +294,13 @@ const SubmitVideoPage = () => {
                   Durée max : {MAX_VIDEO_DURATION_SECONDS} secondes · Taille max : {MAX_VIDEO_SIZE_MB} Mo.
                 </p>
                 {previewUrl && (
-                  <video src={previewUrl} controls className="mt-4 w-full rounded" />
+                  <div className="mt-4 w-full aspect-w-9 aspect-h-16 rounded-md shadow-sm overflow-hidden">
+                    <video
+                      src={previewUrl}
+                      controls
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
                 )}
               </div>
 

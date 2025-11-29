@@ -14,13 +14,14 @@ const ManageParticipantsPage = () => {
   const { user } = useAuth();
 
   const [event, setEvent] = useState(null);
-  const [participants, setParticipants] = useState([]);
+  const [participants, setParticipants] = useState([]);   // invités avec compte (user_id)
+  const [invitations, setInvitations] = useState([]);     // TOUTES les invitations (emails)
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [emails, setEmails] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState(null);
-  const [invitations, setInvitations] = useState([]);
+  const [reminding, setReminding] = useState(false); // état relance
 
   // ✅ Détection expiration (deadline dépassée)
   const isEventExpired = useCallback((evt) => {
@@ -55,10 +56,12 @@ const ManageParticipantsPage = () => {
         const eventData = await eventService.getEvent(eventId);
         setEvent(eventData);
 
-        // Invitations + participants liés
+        // Récupération des invitations en base
         const invList = await invitationService.getInvitations(eventId);
-        setInvitations(invList);
-        setParticipants(invList.filter((inv) => inv.user_id));
+        setInvitations(invList || []);
+
+        // Participants = invitations qui ont un user_id (compte Grega Play créé)
+        setParticipants((invList || []).filter((inv) => inv.user_id));
       } catch (err) {
         console.error('Erreur chargement participants :', err);
         setError("Erreur lors du chargement des données");
@@ -80,7 +83,6 @@ const ManageParticipantsPage = () => {
   const handleInvite = async (e) => {
     e.preventDefault();
 
-    // ✅ Blocage logique : invitations fermées
     if (isInvitationClosed) {
       toast.error("Les invitations sont closes pour cet événement (terminé ou expiré).");
       return;
@@ -99,9 +101,12 @@ const ManageParticipantsPage = () => {
     try {
       setSending(true);
       await invitationService.addInvitations(eventId, emailList, message, event, user);
+
+      // Recharger les invitations après envoi
       const updated = await invitationService.getInvitations(eventId);
-      setInvitations(updated);
-      setParticipants(updated.filter((inv) => inv.user_id));
+      setInvitations(updated || []);
+      setParticipants((updated || []).filter((inv) => inv.user_id));
+
       setEmails('');
       setMessage('');
       toast.success('Invitations envoyées avec succès');
@@ -110,6 +115,57 @@ const ManageParticipantsPage = () => {
       toast.error(err.message || "Erreur lors de l'envoi des invitations");
     } finally {
       setSending(false);
+    }
+  };
+
+  // ✅ Nouvelle fonction : relancer les participants sans vidéo
+  const handleRemindPending = async () => {
+    if (!event) return;
+
+    if (isEventExpired(event)) {
+      toast.error("L'événement est déjà expiré, tu ne peux plus relancer les participants.");
+      return;
+    }
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const apiKey = import.meta.env.VITE_BACKEND_API_KEY;
+
+    if (!backendUrl || !apiKey) {
+      toast.error("Configuration backend manquante (URL ou clé API).");
+      return;
+    }
+
+    try {
+      setReminding(true);
+      toast.info("Envoi des relances en cours…");
+
+      const res = await fetch(`${backendUrl}/api/events/${eventId}/remind`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": apiKey,
+        },
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        console.error("Erreur relance:", data);
+        toast.error(data.error || "Erreur lors de la relance des participants");
+        return;
+      }
+
+      const count = typeof data.remindersSent === "number" ? data.remindersSent : 0;
+      if (count === 0) {
+        toast.info("Aucun participant à relancer (tout le monde a déjà envoyé une vidéo ou aucune invitation en attente).");
+      } else {
+        toast.success(`Relance envoyée à ${count} participant(s) sans vidéo.`);
+      }
+    } catch (err) {
+      console.error("❌ Erreur handleRemindPending:", err);
+      toast.error("Erreur lors de la relance des participants");
+    } finally {
+      setReminding(false);
     }
   };
 
@@ -164,7 +220,8 @@ const ManageParticipantsPage = () => {
               </p>
               {deadlineText && (
                 <p className="mt-1 text-xs text-gray-500">
-                  Date limite pour envoyer les vidéos : <span className="font-medium">{deadlineText}</span>
+                  Date limite pour envoyer les vidéos :{" "}
+                  <span className="font-medium">{deadlineText}</span>
                 </p>
               )}
             </div>
@@ -181,18 +238,29 @@ const ManageParticipantsPage = () => {
                   {isInvitationClosed ? 'Invitations closes' : 'Invitations ouvertes'}
                 </span>
               </div>
-              <Link to={`/events/${eventId}`} className="w-full md:w-auto">
+              <div className="flex flex-col md:flex-row gap-2 w-full md:w-auto">
+                <Link to={`/events/${eventId}`} className="w-full md:w-auto">
+                  <Button
+                    variant="secondary"
+                    className="w-full md:w-auto text-xs md:text-sm py-2"
+                  >
+                    ← Retour à l&apos;événement
+                  </Button>
+                </Link>
                 <Button
+                  type="button"
+                  onClick={handleRemindPending}
+                  disabled={reminding || isEventExpired(event)}
                   variant="secondary"
                   className="w-full md:w-auto text-xs md:text-sm py-2"
                 >
-                  ← Retour à l&apos;événement
+                  {reminding ? "Relance en cours..." : "🔔 Relancer les participants"}
                 </Button>
-              </Link>
+              </div>
             </div>
           </div>
 
-          {/* Carte Participants actuels */}
+          {/* Carte Participants actuels (avec compte) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
               <div>
@@ -200,7 +268,7 @@ const ManageParticipantsPage = () => {
                   Participants actuels
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Liste des personnes invitées et ayant créé un compte.
+                  Liste des personnes invitées <strong>ayant créé un compte</strong>.
                 </p>
               </div>
               <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-3 py-1">
@@ -247,7 +315,59 @@ const ManageParticipantsPage = () => {
             </div>
           </div>
 
-          {/* Carte invitations (nouveaux participants) */}
+          {/* 🆕 Carte Invitations envoyées (TOUS les invités) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+            <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
+              <div>
+                <h2 className="text-sm font-semibold text-gray-900">
+                  Invitations envoyées
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  Liste de toutes les adresses invitées, même si la personne n&apos;a pas encore créé de compte.
+                </p>
+              </div>
+              <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-3 py-1">
+                {invitations.length} invitation
+                {invitations.length > 1 ? 's' : ''}
+              </span>
+            </div>
+
+            <div className="px-5 py-4">
+              {invitations.length === 0 ? (
+                <div className="py-4 text-sm text-gray-500">
+                  Aucune invitation envoyée pour le moment.
+                </div>
+              ) : (
+                <ul className="divide-y divide-gray-100">
+                  {invitations.map((inv) => (
+                    <li
+                      key={inv.id || inv.email}
+                      className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                    >
+                      <div className="flex flex-col">
+                        <span className="text-sm text-gray-900">
+                          {inv.email}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          Statut invitation : {inv.status || 'envoyée'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          Compte Grega Play :{" "}
+                          {inv.user_id ? (
+                            <span className="text-emerald-600 font-medium">créé</span>
+                          ) : (
+                            <span className="text-gray-600">non créé</span>
+                          )}
+                        </span>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+
+          {/* Carte invitations (formulaire nouveaux participants) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <form onSubmit={handleInvite}>
               <div className="px-5 pt-5 pb-4 border-b border-gray-100">
@@ -261,7 +381,6 @@ const ManageParticipantsPage = () => {
               </div>
 
               <div className="px-5 py-4 space-y-4">
-                {/* Message d'info si invitations closes */}
                 {isInvitationClosed && (
                   <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded-xl text-xs">
                     Les invitations sont closes pour cet événement

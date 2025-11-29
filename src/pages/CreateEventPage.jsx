@@ -1,4 +1,3 @@
-// src/pages/CreateEventPage.jsx
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
@@ -32,6 +31,12 @@ const isPastDate = (dateString) => {
   selected.setHours(0, 0, 0, 0);
 
   return selected < today;
+};
+
+// 🔹 Vérifie qu'un email a un format valide
+const isValidEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return regex.test(email);
 };
 
 const CreateEventPage = () => {
@@ -68,16 +73,33 @@ const CreateEventPage = () => {
   };
 
   const handleAddParticipant = () => {
-    if (
-      participantEmail &&
-      !formData.participants.includes(participantEmail.trim())
-    ) {
-      setFormData((prev) => ({
-        ...prev,
-        participants: [...prev.participants, participantEmail.trim()],
-      }));
-      setParticipantEmail("");
+    const email = participantEmail.trim();
+
+    if (!email) return;
+
+    // ⛔ Empêcher d'ajouter l'email du compte connecté
+    if (user?.email && email.toLowerCase() === user.email.toLowerCase()) {
+      toast.error(
+        "Tu n'as pas besoin de t'inviter toi-même. Utilise plutôt l'email d'un autre participant."
+      );
+      return;
     }
+
+    if (!isValidEmail(email)) {
+      toast.error("Adresse email invalide");
+      return;
+    }
+
+    if (formData.participants.includes(email)) {
+      toast.error("Cet email est déjà ajouté");
+      return;
+    }
+
+    setFormData((prev) => ({
+      ...prev,
+      participants: [...prev.participants, email],
+    }));
+    setParticipantEmail("");
   };
 
   const handleRemoveParticipant = (email) => {
@@ -98,6 +120,14 @@ const CreateEventPage = () => {
     // 🔹 Vérifier que la date n'est pas dans le passé
     if (isPastDate(formData.endDate)) {
       toast.error("La date limite ne peut pas être dans le passé");
+      return;
+    }
+
+    // Vérification obligatoire : au moins un email invité
+    if (!formData.participants || formData.participants.length === 0) {
+      toast.error(
+        "Tu dois entrer au moins une adresse email pour inviter quelqu’un."
+      );
       return;
     }
 
@@ -184,7 +214,7 @@ const CreateEventPage = () => {
     <MainLayout>
       <div className="min-h-[calc(100vh-80px)] bg-gray-50">
         <div className="max-w-5xl mx-auto px-4 py-10 flex flex-col md:flex-row md:items-start md:justify-between gap-10">
-          {/* Bloc texte à gauche (inspiration Facebook) */}
+          {/* --- BLOC DE GAUCHE --- */}
           <div className="md:w-1/2">
             <h1 className="text-3xl font-bold text-gray-900 mb-3">
               Crée ton événement en quelques clics
@@ -210,7 +240,7 @@ const CreateEventPage = () => {
             </ul>
           </div>
 
-          {/* Formulaire dans une carte à droite */}
+          {/* --- FORMULAIRE COMPLET --- */}
           <div className="md:w-1/2">
             <div className="bg-white rounded-2xl shadow-xl border border-gray-200">
               <div className="px-6 pt-6 pb-4 border-b border-gray-100">
@@ -218,7 +248,8 @@ const CreateEventPage = () => {
                   Nouveau projet vidéo
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  C&apos;est rapide et gratuit. Tu pourras inviter tes amis juste après.
+                  C'est rapide et gratuit. Tu pourras inviter tes amis juste
+                  après.
                 </p>
               </div>
 
@@ -230,7 +261,7 @@ const CreateEventPage = () => {
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                      Titre de l&apos;événement *
+                      Titre de l'événement *
                     </label>
                     <input
                       type="text"
@@ -238,7 +269,7 @@ const CreateEventPage = () => {
                       value={formData.title}
                       onChange={handleChange}
                       required
-                      className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      className="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                       placeholder="Anniversaire de Lyne, Mariage d’Isaac..."
                     />
                   </div>
@@ -269,14 +300,14 @@ const CreateEventPage = () => {
                     onChange={handleChange}
                     rows={3}
                     className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
-                    placeholder="Explique en quelques mots le but de la vidéo (ex : 'Envoyez une courte vidéo pour souhaiter un joyeux anniversaire à...')"
+                    placeholder="Explique en quelques mots le but de la vidéo…"
                   />
                 </div>
 
                 {/* Média */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                    Visuel de l&apos;événement (optionnel)
+                    Visuel de l'événement (optionnel)
                   </label>
                   <input
                     type="file"
@@ -291,12 +322,11 @@ const CreateEventPage = () => {
                     className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                   />
                   <p className="mt-1 text-[11px] text-gray-500">
-                    Ce média s&apos;affichera sur la page publique de l&apos;événement
-                    (photo, visuel, musique d&apos;ambiance...).
+                    Ce média s'affichera sur la page publique de l'événement.
                   </p>
                 </div>
 
-                {/* Date limite & notifications (sans champs de durée) */}
+                {/* Paramètres */}
                 <div className="bg-gray-50 rounded-xl border border-gray-200 px-3 py-3 space-y-3">
                   <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
                     Paramètres de la vidéo
@@ -312,12 +342,11 @@ const CreateEventPage = () => {
                       value={formData.endDate}
                       onChange={handleChange}
                       required
-                      min={todayString} // 🔹 Empêche de choisir une date passée
+                      min={todayString}
                       className="mt-1 block w-full rounded-md border border-gray-300 bg-white px-2 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
                     />
                   </div>
 
-                  {/* 🆕 Toggle notifications */}
                   <div className="mt-2 flex items-start gap-2">
                     <input
                       id="enableNotifications"
@@ -331,10 +360,9 @@ const CreateEventPage = () => {
                       htmlFor="enableNotifications"
                       className="text-[12px] text-gray-700"
                     >
-                      Recevoir les notifications pour cet événement
+                      Recevoir les notifications
                       <span className="block text-[11px] text-gray-500">
-                        Tu seras prévenu(e) quand une vidéo est envoyée ou quand
-                        la vidéo finale est prête.
+                        Tu seras prévenu(e) quand une vidéo arrive.
                       </span>
                     </label>
                   </div>
@@ -345,6 +373,7 @@ const CreateEventPage = () => {
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
                     Inviter des participants (emails)
                   </label>
+
                   <div className="mt-1 flex gap-2">
                     <input
                       type="email"
@@ -377,8 +406,9 @@ const CreateEventPage = () => {
                       ))}
                     </div>
                   )}
+
                   <p className="mt-1 text-[11px] text-gray-500">
-                    Tu pourras aussi partager un lien public d&apos;accès à l&apos;événement.
+                    Tu pourras aussi partager un lien public.
                   </p>
                 </div>
 
@@ -389,11 +419,11 @@ const CreateEventPage = () => {
                     loading={loading}
                     className="w-full py-2.5 text-base font-semibold"
                   >
-                    Créer l&apos;événement
+                    Créer l'événement
                   </Button>
                   <p className="mt-2 text-[11px] text-gray-500 text-center">
-                    En créant cet événement, tu confirmes que les vidéos envoyées
-                    respectent les personnes filmées.
+                    En créant cet événement, tu confirmes que tout respecte les
+                    personnes filmées.
                   </p>
                 </div>
               </form>

@@ -1,5 +1,7 @@
-// src/services/eventService.js
 import supabase from '../lib/supabaseClient';
+
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const API_KEY = import.meta.env.VITE_BACKEND_API_KEY;
 
 const eventService = {
   // ✅ Récupérer un événement par ID (ancienne méthode conservée)
@@ -145,7 +147,37 @@ const eventService = {
       throw new Error("Erreur récupération vidéos");
     }
     return data;
-  }
+  },
+
+  // ✅ Récupérer les stats (invitations / vidéos / en attente) depuis le backend Node
+  async getEventStats(eventId) {
+    if (!API_BASE_URL || !API_KEY) {
+      console.error("Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY).");
+      // On renvoie des valeurs neutres pour ne pas casser l'affichage
+      return {
+        totalInvitations: 0,
+        totalWithVideo: 0,
+        totalPending: 0,
+      };
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/events/${eventId}/stats`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+      },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      console.error('❌ Erreur API getEventStats:', data);
+      throw new Error(data.error || 'Erreur récupération stats événement');
+    }
+
+    return data;
+  },
 };
 
 export default eventService;

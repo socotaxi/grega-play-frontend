@@ -123,6 +123,41 @@ const videoService = {
   },
 
   /**
+   * Récupère la (première) vidéo de l'utilisateur pour un événement
+   * → utilisé par SubmitVideoPage pour savoir si l'utilisateur a déjà envoyé une vidéo
+   * @param {string} eventId
+   * @param {string} userId
+   */
+  async getMyVideoForEvent(eventId, userId) {
+    try {
+      if (!eventId || !userId) {
+        throw new Error("Événement ou utilisateur manquant.");
+      }
+
+      const { data, error } = await supabase
+        .from("videos")
+        .select(
+          "id, event_id, user_id, storage_path, created_at, participant_name"
+        )
+        .eq("event_id", eventId)
+        .eq("user_id", userId)
+        .order("created_at", { ascending: true });
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        return null;
+      }
+
+      // On retourne la première vidéo trouvée (une seule vidéo par utilisateur/événement)
+      return data[0];
+    } catch (err) {
+      console.error("Erreur getMyVideoForEvent:", err);
+      throw err;
+    }
+  },
+
+  /**
    * Récupère toutes les vidéos d'un événement
    * @param {string} eventId - UUID de l'événement
    */

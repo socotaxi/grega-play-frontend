@@ -26,6 +26,22 @@ const phoneCountryOptions = [
   { value: "+1", label: "🇺🇸 +1" },
 ];
 
+// 🔒 Vérifie si la date de naissance indique moins de 15 ans
+function isUnder15(birthDateString) {
+  const birth = new Date(birthDateString);
+  if (isNaN(birth.getTime())) return true; // date invalide → on refuse
+
+  const today = new Date();
+  const minBirth = new Date(
+    today.getFullYear() - 15,
+    today.getMonth(),
+    today.getDate()
+  );
+
+  // true = trop jeune
+  return birth > minBirth;
+}
+
 const RegisterForm = () => {
   const navigate = useNavigate();
 
@@ -97,7 +113,9 @@ const RegisterForm = () => {
     }
 
     if (!formData.acceptTerms) {
-      toast.error("Vous devez accepter les CGU et la politique de confidentialité");
+      toast.error(
+        "Vous devez accepter les CGU et la politique de confidentialité"
+      );
       return;
     }
 
@@ -110,6 +128,14 @@ const RegisterForm = () => {
       birth_date = `${year}-${month}-${day}`;
     }
 
+    // 🔒 Contrôle d’âge : au moins 15 ans
+    if (!birth_date || isUnder15(birth_date)) {
+      toast.error(
+        "Impossible de créer votre compte\nImpossible de vous inscrire sur GregaPlay"
+      );
+      return;
+    }
+
     // Construire et valider le téléphone (E.164)
     let phoneE164 = null;
 
@@ -120,8 +146,12 @@ const RegisterForm = () => {
 
       const parsed = parsePhoneNumberFromString(phoneFull);
       if (!parsed || !parsed.isValid()) {
-        setPhoneError("Numéro de téléphone invalide. Vérifie l’indicatif et le numéro.");
-        toast.error("Numéro de téléphone invalide. Vérifie l’indicatif et le numéro.");
+        setPhoneError(
+          "Numéro de téléphone invalide. Vérifie l’indicatif et le numéro."
+        );
+        toast.error(
+          "Numéro de téléphone invalide. Vérifie l’indicatif et le numéro."
+        );
         return;
       }
 
@@ -165,7 +195,9 @@ const RegisterForm = () => {
     <form onSubmit={handleSubmit} className="space-y-6">
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700">Prénom</label>
+          <label className="block text-sm font-medium text-gray-700">
+            Prénom
+          </label>
           <input
             type="text"
             name="firstName"
@@ -190,7 +222,9 @@ const RegisterForm = () => {
 
       {/* Date de naissance : Jour / Mois / Année */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Date de naissance</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Date de naissance
+        </label>
         <div className="mt-1 flex gap-2">
           <select
             name="birth_day"
@@ -233,7 +267,8 @@ const RegisterForm = () => {
           </select>
         </div>
         <p className="mt-1 text-xs text-gray-500">
-          Choisis ton jour, ton mois et ton année.
+          Choisis ton jour, ton mois et ton année. Tu dois avoir au moins 15
+          ans pour t’inscrire.
         </p>
       </div>
 
@@ -289,7 +324,9 @@ const RegisterForm = () => {
 
       {/* Téléphone façon Leetchi : indicatif + numéro */}
       <div>
-        <label className="block text-sm font-medium text-gray-700">Téléphone portable</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Téléphone portable
+        </label>
         <div className="mt-1 flex">
           <select
             name="phoneCountryCode"
@@ -323,7 +360,9 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Adresse e-mail</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Adresse e-mail
+        </label>
         <input
           type="email"
           name="email"
@@ -335,7 +374,9 @@ const RegisterForm = () => {
       </div>
 
       <div>
-        <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+        <label className="block text-sm font-medium text-gray-700">
+          Mot de passe
+        </label>
         <input
           type="password"
           name="password"

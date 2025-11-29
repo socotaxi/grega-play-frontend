@@ -37,6 +37,7 @@ const FinalVideoPage = () => {
   const [selectedVideoIds, setSelectedVideoIds] = useState([]);
 
   const isOwner = user && event && user.id === event.user_id;
+  const isPremium = profile?.plan_type === "premium";
 
   // Charger vidéos soumises
   useEffect(() => {
@@ -206,16 +207,25 @@ const FinalVideoPage = () => {
 
   const handleGenerateVideo = async () => {
     if (!event || !user) return;
+    if (!isOwner) return;
 
-    // Règles de base : 2 à 5 vidéos sélectionnées en gratuit
+    const isFirstGeneration = !finalVideo;
+
+    // Régénération réservée aux comptes Premium
+    if (!isFirstGeneration && !isPremium) {
+      setError("La régénération de la vidéo finale est réservée aux comptes Premium.");
+      toast.error("Fonction réservée au compte Premium.");
+      return;
+    }
+
+    // Sélection minimale
     if (!Array.isArray(selectedVideoIds) || selectedVideoIds.length < 2) {
       setError("Sélectionne au moins 2 vidéos pour générer la vidéo finale.");
       toast.error("Sélectionne au moins 2 vidéos.");
       return;
     }
 
-    const isPremium = false; // à remplacer plus tard quand le Premium sera implémenté
-
+    // Limite de 5 vidéos en gratuit
     if (!isPremium && selectedVideoIds.length > 5) {
       setError("La version gratuite permet d'utiliser au maximum 5 vidéos. Passe à Premium pour en utiliser davantage.");
       toast.error("Maximum 5 vidéos en version gratuite.");
@@ -231,7 +241,7 @@ const FinalVideoPage = () => {
 
       setEvent(prev => prev ? { ...prev, status: 'processing' } : prev);
 
-      // 🟦 Barre de progression lente + texte dynamique
+      // Barre de progression lente + texte dynamique
       timer = setInterval(() => {
         setGenerationProgress((prev) => {
           if (prev >= 90) {
@@ -252,8 +262,7 @@ const FinalVideoPage = () => {
 
           return next;
         });
-      }, 600); // tick plus espacé → plus lent
-      // 🟦 fin barre lente
+      }, 600);
 
       const res = await videoService.generateFinalVideo(eventId, selectedVideoIds);
 
@@ -264,9 +273,9 @@ const FinalVideoPage = () => {
         const url = `${res.finalVideoUrl.videoUrl}?t=${Date.now()}`;
         setFinalVideo(url);
         setGenerationProgress(100);
-        setGenerationLabel("Montage terminé 🎉");
+        setGenerationLabel("Montage terminé ");
         setProcessing(false);
-        toast.success("🎉 Vidéo finale générée !");
+        toast.success(" Vidéo finale générée !");
       }
 
       const creatorName =
@@ -301,7 +310,7 @@ const FinalVideoPage = () => {
     user &&
     (user.id === event.user_id || user.role === 'admin');
 
-  // 🔗 Lien public de partage (player) basé sur public_code
+  // Lien public de partage (player) basé sur public_code
   const publicShareUrl =
     event?.public_code
       ? `${window.location.origin}/player/${event.public_code}`
@@ -361,7 +370,7 @@ const FinalVideoPage = () => {
               <div className="mt-4 aspect-w-9 aspect-h-16">
                 <video
                   controls
-                  className="w-full h-auto rounded-md shadow-lg"
+                  className="w-full h-full object-cover rounded-md shadow-lg"
                   src={finalVideo}
                 >
                   Votre navigateur ne prend pas en charge la lecture de vidéos.
@@ -515,11 +524,15 @@ const FinalVideoPage = () => {
                         <span>Inclure dans le montage</span>
                       </label>
                     )}
-                    <video
-                      src={publicUrl}
-                      controls
-                      className="w-full h-auto rounded"
-                    />
+
+                    <div className="relative w-full aspect-w-9 aspect-h-16 overflow-hidden rounded-md shadow-sm">
+                      <video
+                        src={publicUrl}
+                        controls
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+
                     <p className="mt-2 text-sm font-semibold text-gray-900 text-center truncate">
                       {video.participant_name || "Auteur inconnu"}
                     </p>

@@ -12,6 +12,7 @@ import { toast } from 'react-toastify';
 const DashboardPage = () => {
   const { user, profile } = useAuth();
   const [events, setEvents] = useState([]);
+  const [eventStats, setEventStats] = useState({}); // { eventId: { totalInvitations, totalWithVideo, totalPending } }
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingEventId, setDeletingEventId] = useState(null);
@@ -127,6 +128,43 @@ const DashboardPage = () => {
       (a, b) => new Date(b.created_at) - new Date(a.created_at),
     );
   }, [events]);
+
+  // ✅ Charger les stats (invitations / vidéos / en attente) pour chaque event
+  useEffect(() => {
+    const loadStats = async () => {
+      if (!sortedEvents.length) {
+        setEventStats({});
+        return;
+      }
+
+      try {
+        const entries = await Promise.all(
+          sortedEvents.map(async (evt) => {
+            try {
+              const stats = await eventService.getEventStats(evt.id);
+              return [evt.id, stats];
+            } catch (err) {
+              console.error('Erreur stats event', evt.id, err);
+              return [evt.id, null];
+            }
+          }),
+        );
+
+        setEventStats(Object.fromEntries(entries));
+      } catch (err) {
+        console.error('Erreur chargement stats events:', err);
+      }
+    };
+
+    loadStats();
+  }, [sortedEvents]);
+
+  // ✅ Couleur dynamique de la barre en fonction du pourcentage
+  const getProgressColor = (pct) => {
+    if (pct < 30) return 'bg-red-500';
+    if (pct < 70) return 'bg-orange-400';
+    return 'bg-emerald-500';
+  };
 
   if (loading) {
     return (
@@ -255,6 +293,29 @@ const DashboardPage = () => {
                           ? `${window.location.origin}/e/${event.public_code}`
                           : '';
 
+                        const stats = eventStats[event.id];
+                        const pendingCount =
+                          typeof stats?.totalPending === 'number'
+                            ? stats.totalPending
+                            : null;
+
+                        const totalInvitations =
+                          typeof stats?.totalInvitations === 'number'
+                            ? stats.totalInvitations
+                            : 0;
+                        const totalWithVideo =
+                          typeof stats?.totalWithVideo === 'number'
+                            ? stats.totalWithVideo
+                            : 0;
+                        const progressPct =
+                          totalInvitations > 0
+                            ? Math.round(
+                                (totalWithVideo / totalInvitations) * 100,
+                              )
+                            : 0;
+
+                        const barColorClass = getProgressColor(progressPct);
+
                         return (
                           <div
                             key={event.id}
@@ -305,7 +366,35 @@ const DashboardPage = () => {
                                           Vidéo finale prête
                                         </span>
                                       )}
+
+                                      {/* Badge "en attente de vidéo" */}
+                                      {pendingCount !== null && (
+                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-orange-50 text-orange-700">
+                                          {pendingCount} en attente de vidéo
+                                        </span>
+                                      )}
                                     </div>
+
+                                    {/* ✅ Barre de progression vidéos reçues */}
+                                    {totalInvitations > 0 && (
+                                      <div className="mt-3">
+                                        <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                                          <span>Vidéos reçues</span>
+                                          <span className="font-medium text-gray-700">
+                                            {totalWithVideo} / {totalInvitations}{' '}
+                                            ({progressPct}%)
+                                          </span>
+                                        </div>
+                                        <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+                                          <div
+                                            className={`h-2 rounded-full ${barColorClass} transition-all`}
+                                            style={{
+                                              width: `${progressPct}%`,
+                                            }}
+                                          />
+                                        </div>
+                                      </div>
+                                    )}
 
                                     {/* Lien de partage */}
                                     {event.public_code && (

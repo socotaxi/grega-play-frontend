@@ -1,6 +1,11 @@
-// src/services/invitationService.js
 import supabase from '../lib/supabaseClient';
 import emailService from './emailService';
+
+// 🔹 Vérifie qu'un email a un format valide
+const isValidEmail = (email) => {
+  const regex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  return typeof email === 'string' && regex.test(email.trim());
+};
 
 const invitationService = {
   /**
@@ -32,8 +37,24 @@ const invitationService = {
       throw new Error("Paramètres invalides");
     }
 
+    // 🔹 Filtrer les emails invalides
+    const validEmails = emails
+      .filter((email) => isValidEmail(email))
+      .map((email) => email.trim());
+
+    if (!validEmails.length) {
+      throw new Error("Aucune adresse email valide fournie");
+    }
+
+    if (validEmails.length !== emails.length) {
+      console.warn(
+        '⚠️ Certains emails ont été ignorés car invalides:',
+        emails.filter((e) => !validEmails.includes(e?.trim()))
+      );
+    }
+
     const createdAt = new Date().toISOString();
-    const invitations = emails.map((email) => ({
+    const invitations = validEmails.map((email) => ({
       event_id: eventId,
       email,
       token: crypto.randomUUID(),

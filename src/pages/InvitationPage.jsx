@@ -9,13 +9,31 @@ import { useAuth } from '../context/AuthContext';
 import invitationService from '../services/invitationService';
 import activityService from "../services/activityService";
 
+// 🔒 Vérifie si la date de naissance indique moins de 15 ans
+function isUnder15(birthDateString) {
+  const birth = new Date(birthDateString);
+  if (isNaN(birth.getTime())) return true; // date invalide → on refuse
+
+  const today = new Date();
+  const minBirth = new Date(
+    today.getFullYear() - 15,
+    today.getMonth(),
+    today.getDate()
+  );
+
+  // true = trop jeune
+  return birth > minBirth;
+}
+
 const InvitationPage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
   const { user, login, register } = useAuth();
+
   const [invitation, setInvitation] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [authMode, setAuthMode] = useState('register'); // 'register' or 'login'
   const [authLoading, setAuthLoading] = useState(false);
@@ -23,41 +41,45 @@ const InvitationPage = () => {
     email: '',
     password: '',
     confirmPassword: '',
-    fullName: ''
+    fullName: '',
+    birthDate: '', // 🔹 ajouté
   });
 
   useEffect(() => {
     if (token) {
       loadInvitation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
   useEffect(() => {
-    // If user is already logged in and invitation is loaded, auto-accept
+    // Si l'utilisateur est déjà connecté et que l'invitation est chargée,
+    // on accepte automatiquement l'invitation (statut "pending")
     if (user && invitation && invitation.status === 'pending') {
       handleAcceptInvitation();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, invitation]);
 
   const loadInvitation = async () => {
     try {
       setLoading(true);
       const invitationData = await invitationService.getInvitationByToken(token);
-      
+
       if (!invitationData) {
         setError('Invitation non trouvée ou expirée');
         return;
       }
 
       setInvitation(invitationData);
-      
-      // Pre-fill email if available
+
+      // Pré-remplir l'email si disponible
       if (invitationData.email) {
-        setAuthData(prev => ({ ...prev, email: invitationData.email }));
+        setAuthData((prev) => ({ ...prev, email: invitationData.email }));
       }
     } catch (err) {
       console.error('Error loading invitation:', err);
-      setError('Erreur lors du chargement de l\'invitation');
+      setError("Erreur lors du chargement de l'invitation");
     } finally {
       setLoading(false);
     }
@@ -70,55 +92,103 @@ const InvitationPage = () => {
     }
 
     try {
-      const success = await invitationService.acceptInvitation(token, user.id);
-      
+      let success = false;
+
+      // Compatibilité avec une éventuelle ancienne méthode acceptInvitation
+      if (typeof invitationService.acceptInvitation === 'function') {
+        try {
+          const result = await invitationService.acceptInvitation(token, user.id);
+          if (result) success = true;
+        } catch (e) {
+          console.warn("acceptInvitation a échoué ou n'est pas utilisée :", e);
+        }
+      }
+
+      // Nouvelle logique : marquer l'invitation comme acceptée + lier user_id
+      if (typeof invitationService.markInvitationAccepted === 'function') {
+        await invitationService.markInvitationAccepted(token, user.id);
+        success = true;
+      }
+
       if (success) {
         toast.success('Invitation acceptée avec succès !');
 
-await activityService.logActivity({
-event_id: invitation.event_id,
-user_id: user.id,
-type: "accepted_invitation",
-message: `${user.email} a rejoint l'événement 🎉`
-});
+        // Log activité
+        try {
+          await activityService.logActivity({
+            event_id: invitation.event_id,
+            user_id: user.id,
+            type: "accepted_invitation",
+            message: `${user.email} a rejoint l'événement 🎉`,
+          });
+        } catch (logErr) {
+          console.warn("Erreur logActivity (accepted_invitation):", logErr);
+        }
 
-        navigate(`/events/${invitation.events.id}`);
+        // Mise à jour locale du statut
+        setInvitation((prev) =>
+          prev ? { ...prev, status: 'accepted', user_id: user.id } : prev
+        );
+
+        // Navigation vers la page de l'événement
+        const targetEventId =
+          invitation.events?.id || invitation.event_id || invitation.event?.id;
+
+        if (targetEventId) {
+          navigate(`/events/${targetEventId}`);
+        } else {
+          navigate('/dashboard');
+        }
       } else {
-        toast.error('Erreur lors de l\'acceptation de l\'invitation');
+        toast.error("Erreur lors de l'acceptation de l'invitation");
       }
     } catch (error) {
       console.error('Error accepting invitation:', error);
-      toast.error('Erreur lors de l\'acceptation de l\'invitation');
+      toast.error("Erreur lors de l'acceptation de l'invitation");
     }
   };
 
   const handleDeclineInvitation = async () => {
     try {
-      const success = await invitationService.declineInvitation(token);
-      
-      if (success) {
-        toast.info('Invitation déclinée');
+      let success = false;
 
-await activityService.logActivity({
-event_id: invitation.event_id,
-user_id: user.id,
-type: "declined_invitation",
-message: `${user.email} a refusé l'invitation ❌`
-});
-
-        setInvitation(prev => ({ ...prev, status: 'declined' }));
+      // Compatibilité si une méthode declineInvitation existe
+      if (typeof invitationService.declineInvitation === 'function') {
+        success = await invitationService.declineInvitation(token);
       } else {
-        toast.error('Erreur lors du refus de l\'invitation');
+        // Fallback : on met simplement à jour le statut en front
+        success = true;
+      }
+
+      if (success) {
+        toast.info("Invitation déclinée");
+
+        // Log activité
+        try {
+          await activityService.logActivity({
+            event_id: invitation.event_id,
+            user_id: user?.id || null,
+            type: "declined_invitation",
+            message: `${user?.email || 'Un invité'} a refusé l'invitation ❌`,
+          });
+        } catch (logErr) {
+          console.warn("Erreur logActivity (declined_invitation):", logErr);
+        }
+
+        setInvitation((prev) =>
+          prev ? { ...prev, status: 'declined' } : prev
+        );
+      } else {
+        toast.error("Erreur lors du refus de l'invitation");
       }
     } catch (error) {
       console.error('Error declining invitation:', error);
-      toast.error('Erreur lors du refus de l\'invitation');
+      toast.error("Erreur lors du refus de l'invitation");
     }
   };
 
   const handleAuthSubmit = async (e) => {
     e.preventDefault();
-    setAuthLoading(true);
 
     try {
       if (authMode === 'register') {
@@ -127,6 +197,18 @@ message: `${user.email} a refusé l'invitation ❌`
           return;
         }
 
+        // 🔒 Contrôle d’âge : au moins 15 ans
+        if (!authData.birthDate || isUnder15(authData.birthDate)) {
+          toast.error(
+            "Impossible de créer votre compte\nImpossible de vous inscrire sur GregaPlay"
+          );
+          return;
+        }
+      }
+
+      setAuthLoading(true);
+
+      if (authMode === 'register') {
         await register(authData.email, authData.password, authData.fullName);
         toast.success('Compte créé avec succès !');
       } else {
@@ -134,11 +216,11 @@ message: `${user.email} a refusé l'invitation ❌`
         toast.success('Connexion réussie !');
       }
 
-      // After successful auth, the useEffect will handle accepting the invitation
+      // Après auth, le useEffect user+invitation se charge d'accepter l'invitation
       setShowAuthForm(false);
     } catch (error) {
       console.error('Auth error:', error);
-      toast.error(error.message || 'Erreur d\'authentification');
+      toast.error(error.message || "Erreur d'authentification");
     } finally {
       setAuthLoading(false);
     }
@@ -146,7 +228,7 @@ message: `${user.email} a refusé l'invitation ❌`
 
   const handleAuthInputChange = (e) => {
     const { name, value } = e.target;
-    setAuthData(prev => ({ ...prev, [name]: value }));
+    setAuthData((prev) => ({ ...prev, [name]: value }));
   };
 
   if (loading) {
@@ -166,11 +248,11 @@ message: `${user.email} a refusé l'invitation ❌`
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-center">
             <h2 className="text-lg font-semibold mb-2">Invitation non valide</h2>
             <p>{error}</p>
-            <Button 
+            <Button
               className="mt-4"
               onClick={() => navigate('/')}
             >
-              Retour à l'accueil
+              Retour à l&apos;accueil
             </Button>
           </div>
         </div>
@@ -184,7 +266,9 @@ message: `${user.email} a refusé l'invitation ❌`
         <div className="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
           <div className="text-center">
             <p>Invitation non trouvée</p>
-            <Button onClick={() => navigate('/')}>Retour à l'accueil</Button>
+            <Button onClick={() => navigate('/')}>
+              Retour à l&apos;accueil
+            </Button>
           </div>
         </div>
       </MainLayout>
@@ -203,7 +287,7 @@ message: `${user.email} a refusé l'invitation ❌`
           </p>
         </div>
 
-        <InvitationCard 
+        <InvitationCard
           invitation={invitation}
           onAccept={handleAcceptInvitation}
           onDecline={handleDeclineInvitation}
@@ -220,10 +304,12 @@ message: `${user.email} a refusé l'invitation ❌`
                     {authMode === 'register' ? 'Créer un compte' : 'Se connecter'}
                   </h3>
                 </div>
-                
+
                 <form onSubmit={handleAuthSubmit} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Email</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Email
+                    </label>
                     <input
                       type="email"
                       name="email"
@@ -236,7 +322,9 @@ message: `${user.email} a refusé l'invitation ❌`
 
                   {authMode === 'register' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Nom complet</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Nom complet
+                      </label>
                       <input
                         type="text"
                         name="fullName"
@@ -248,8 +336,29 @@ message: `${user.email} a refusé l'invitation ❌`
                     </div>
                   )}
 
+                  {authMode === 'register' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Date de naissance
+                      </label>
+                      <input
+                        type="date"
+                        name="birthDate"
+                        value={authData.birthDate}
+                        onChange={handleAuthInputChange}
+                        required
+                        className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                      <p className="mt-1 text-xs text-gray-500">
+                        Vous devez avoir au moins 15 ans pour vous inscrire.
+                      </p>
+                    </div>
+                  )}
+
                   <div>
-                    <label className="block text-sm font-medium text-gray-700">Mot de passe</label>
+                    <label className="block text-sm font-medium text-gray-700">
+                      Mot de passe
+                    </label>
                     <input
                       type="password"
                       name="password"
@@ -263,7 +372,9 @@ message: `${user.email} a refusé l'invitation ❌`
 
                   {authMode === 'register' && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Confirmer le mot de passe</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        Confirmer le mot de passe
+                      </label>
                       <input
                         type="password"
                         name="confirmPassword"
@@ -282,7 +393,9 @@ message: `${user.email} a refusé l'invitation ❌`
                       loading={authLoading}
                       className="flex-1"
                     >
-                      {authMode === 'register' ? 'Créer le compte' : 'Se connecter'}
+                      {authMode === 'register'
+                        ? 'Créer le compte'
+                        : 'Se connecter'}
                     </Button>
                     <Button
                       type="button"
@@ -297,13 +410,14 @@ message: `${user.email} a refusé l'invitation ❌`
                 <div className="mt-4 text-center">
                   <button
                     type="button"
-                    onClick={() => setAuthMode(authMode === 'register' ? 'login' : 'register')}
+                    onClick={() =>
+                      setAuthMode(authMode === 'register' ? 'login' : 'register')
+                    }
                     className="text-indigo-600 hover:text-indigo-500 text-sm"
                   >
-                    {authMode === 'register' 
-                      ? 'Déjà un compte ? Se connecter' 
-                      : 'Pas de compte ? Créer un compte'
-                    }
+                    {authMode === 'register'
+                      ? 'Déjà un compte ? Se connecter'
+                      : 'Pas de compte ? Créer un compte'}
                   </button>
                 </div>
               </div>
