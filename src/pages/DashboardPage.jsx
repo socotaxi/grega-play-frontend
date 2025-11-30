@@ -16,6 +16,7 @@ const DashboardPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingEventId, setDeletingEventId] = useState(null);
+  const [showStats, setShowStats] = useState(false); // 👈 toggle affichage stats
 
   const fetchEvents = useCallback(async () => {
     if (!user) return;
@@ -133,7 +134,7 @@ const DashboardPage = () => {
   useEffect(() => {
     const loadStats = async () => {
       if (!sortedEvents.length) {
-        setEventStats({});
+        setEventStats({ });
         return;
       }
 
@@ -165,6 +166,83 @@ const DashboardPage = () => {
     if (pct < 70) return 'bg-orange-400';
     return 'bg-emerald-500';
   };
+
+  // ✅ Statistiques globales (tous événements confondus)
+  const globalStats = useMemo(() => {
+    const result = {
+      totalEvents: events.length,
+      totalInvitations: 0,
+      totalWithVideo: 0,
+      totalPending: 0,
+      completionPct: 0,
+    };
+
+    events.forEach((evt) => {
+      const stats = eventStats[evt.id];
+      if (!stats) return;
+
+      if (typeof stats.totalInvitations === 'number') {
+        result.totalInvitations += stats.totalInvitations;
+      }
+      if (typeof stats.totalWithVideo === 'number') {
+        result.totalWithVideo += stats.totalWithVideo;
+      }
+      if (typeof stats.totalPending === 'number') {
+        result.totalPending += stats.totalPending;
+      }
+    });
+
+    if (result.totalInvitations > 0) {
+      result.completionPct = Math.round(
+        (result.totalWithVideo / result.totalInvitations) * 100,
+      );
+    }
+
+    return result;
+  }, [events, eventStats]);
+
+  // ✅ Statistiques par type d'événement (par thème)
+  const statsByTheme = useMemo(() => {
+    const map = {};
+
+    events.forEach((evt) => {
+      const themeKey = evt.theme || 'Autre';
+      if (!map[themeKey]) {
+        map[themeKey] = {
+          theme: themeKey,
+          eventsCount: 0,
+          totalInvitations: 0,
+          totalWithVideo: 0,
+          totalPending: 0,
+        };
+      }
+
+      map[themeKey].eventsCount += 1;
+
+      const stats = eventStats[evt.id];
+      if (!stats) return;
+
+      if (typeof stats.totalInvitations === 'number') {
+        map[themeKey].totalInvitations += stats.totalInvitations;
+      }
+      if (typeof stats.totalWithVideo === 'number') {
+        map[themeKey].totalWithVideo += stats.totalWithVideo;
+      }
+      if (typeof stats.totalPending === 'number') {
+        map[themeKey].totalPending += stats.totalPending;
+      }
+    });
+
+    return Object.values(map)
+      .map((row) => ({
+        ...row,
+        completionPct:
+          row.totalInvitations > 0
+            ? Math.round((row.totalWithVideo / row.totalInvitations) * 100)
+            : 0,
+      }))
+      .sort((a, b) => b.eventsCount - a.eventsCount);
+  }, [events, eventStats]);
 
   if (loading) {
     return (
@@ -228,6 +306,151 @@ const DashboardPage = () => {
           {error && (
             <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
               {error}
+            </div>
+          )}
+
+          {/* Bouton pour afficher/masquer les stats */}
+          {events.length > 0 && (
+            <div className="flex justify-end">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setShowStats((prev) => !prev)}
+                className="text-xs md:text-sm px-4 py-2"
+              >
+                {showStats
+                  ? 'Masquer les statistiques'
+                  : 'Afficher les statistiques de participation'}
+              </Button>
+            </div>
+          )}
+
+          {/* ✅ Statistiques globales de participation (affichées seulement si showStats = true) */}
+          {showStats && events.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
+                <p className="text-xs text-gray-500">Événements</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {globalStats.totalEvents}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Nombre total d&apos;événements que tu as créés ou gères.
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
+                <p className="text-xs text-gray-500">Vidéos reçues</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {globalStats.totalWithVideo}
+                  {globalStats.totalInvitations > 0 && (
+                    <span className="ml-2 text-sm font-medium text-gray-500">
+                      / {globalStats.totalInvitations}
+                    </span>
+                  )}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Clips reçus sur l&apos;ensemble de tes événements.
+                </p>
+                {globalStats.totalInvitations > 0 && (
+                  <div className="mt-3">
+                    <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                      <span>Taux de complétion</span>
+                      <span className="font-medium text-gray-700">
+                        {globalStats.completionPct}%
+                      </span>
+                    </div>
+                    <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+                      <div
+                        className={`h-2 rounded-full ${getProgressColor(
+                          globalStats.completionPct,
+                        )} transition-all`}
+                        style={{ width: `${globalStats.completionPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
+                <p className="text-xs text-gray-500">En attente de vidéo</p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {globalStats.totalPending}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Participants invités qui n&apos;ont pas encore envoyé de clip.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {/* ✅ Performance par type d'événement (affichée seulement si showStats = true) */}
+          {showStats && events.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-gray-900">
+                    Performance par type d&apos;événement
+                  </h2>
+                  <p className="text-xs text-gray-500 mt-1">
+                    Compare les types d&apos;événements (anniversaire, mariage,
+                    entreprise, etc.) pour voir où Grega Play performe le mieux.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-2 overflow-x-auto">
+                {statsByTheme.length === 0 ? (
+                  <p className="text-xs text-gray-500 py-4">
+                    Aucune statistique disponible pour l&apos;instant.
+                  </p>
+                ) : (
+                  <table className="min-w-full text-xs">
+                    <thead>
+                      <tr className="border-b border-gray-100 text-[11px] text-gray-500">
+                        <th className="py-2 pr-4 text-left font-medium">
+                          Type d&apos;événement
+                        </th>
+                        <th className="py-2 px-2 text-right font-medium">
+                          Événements
+                        </th>
+                        <th className="py-2 px-2 text-right font-medium">
+                          Invités
+                        </th>
+                        <th className="py-2 px-2 text-right font-medium">
+                          Vidéos reçues
+                        </th>
+                        <th className="py-2 pl-2 text-right font-medium">
+                          Taux de complétion
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {statsByTheme.map((row) => (
+                        <tr
+                          key={row.theme}
+                          className="border-b border-gray-50 hover:bg-gray-50/50"
+                        >
+                          <td className="py-2 pr-4 text-left text-gray-800">
+                            {row.theme}
+                          </td>
+                          <td className="py-2 px-2 text-right text-gray-700">
+                            {row.eventsCount}
+                          </td>
+                          <td className="py-2 px-2 text-right text-gray-700">
+                            {row.totalInvitations}
+                          </td>
+                          <td className="py-2 px-2 text-right text-gray-700">
+                            {row.totalWithVideo}
+                          </td>
+                          <td className="py-2 pl-2 text-right text-gray-700">
+                            {row.completionPct}%
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </div>
             </div>
           )}
 
@@ -326,18 +549,55 @@ const DashboardPage = () => {
                               <div className="flex-1">
                                 <div className="flex items-start gap-3">
                                   {/* Miniature */}
-                                  {event.media_url && (
-                                    <Link
-                                      to={`/events/${event.id}`}
-                                      className="flex-shrink-0"
-                                    >
-                                      <img
-                                        src={event.media_url}
-                                        alt="Miniature de l'événement"
-                                        className="w-20 h-16 object-cover rounded-md border border-gray-200 cursor-pointer hover:opacity-90 transition"
-                                      />
-                                    </Link>
-                                  )}
+<Link to={`/events/${event.id}`} className="flex-shrink-0">
+  {(() => {
+    const url = event.media_url || "";
+    const lower = url.toLowerCase();
+
+    // IMAGE
+    if (lower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+      return (
+        <img
+          src={url}
+          alt="Visuel événement"
+          className="w-20 h-16 object-cover rounded-md border border-gray-200"
+        />
+      );
+    }
+
+    // VIDÉO -> thumbnail par défaut
+    if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+      return (
+        <img
+          src="/default-video-thumbnail.jpg"
+          alt="Miniature vidéo"
+          className="w-20 h-16 object-cover rounded-md border border-gray-200"
+        />
+      );
+    }
+
+    // AUDIO -> autre thumbnail simple
+    if (lower.match(/\.(mp3|wav|ogg)$/i)) {
+      return (
+        <img
+          src="/default-audio-thumbnail.jpg"
+          alt="Miniature audio"
+          className="w-20 h-16 object-cover rounded-md border border-gray-200"
+        />
+      );
+    }
+
+    // RIEN -> placeholder par défaut
+    return (
+      <img
+        src="/default-placeholder.jpg"
+        alt="Aucun visuel"
+        className="w-20 h-16 object-cover rounded-md border border-gray-200"
+      />
+    );
+  })()}
+</Link>
+
 
                                   <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-gray-900">

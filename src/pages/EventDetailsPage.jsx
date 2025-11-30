@@ -8,7 +8,7 @@ import { useAuth } from "../context/AuthContext";
 import eventService from "../services/eventService";
 import videoService from "../services/videoService";
 import { toast } from "react-toastify";
-import supabase from "../lib/supabaseClient"; // 🆕 pour mettre à jour enable_notifications
+import supabase from "../lib/supabaseClient"; // pour enable_notifications
 
 const EventDetailsPage = () => {
   const { eventId } = useParams();
@@ -18,9 +18,13 @@ const EventDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
-  // 🆕 état local pour le switch de notifications
+  // Switch notifications
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [updatingNotifications, setUpdatingNotifications] = useState(false);
+
+  // Édition de la date limite
+  const [newDeadline, setNewDeadline] = useState("");
+  const [updatingDeadline, setUpdatingDeadline] = useState(false);
 
   const statusMap = useMemo(
     () => ({
@@ -51,24 +55,21 @@ const EventDetailsPage = () => {
     return new Date(dateString).toLocaleDateString("fr-FR", options);
   }, []);
 
-  const isEventExpired = useCallback(
-    (event) => {
-      if (!event?.deadline) return false;
+  const isEventExpired = useCallback((event) => {
+    if (!event?.deadline) return false;
 
-      const now = new Date();
-      const deadline = new Date(event.deadline);
+    const now = new Date();
+    const deadline = new Date(event.deadline);
 
-      // On considère l'événement actif jusqu'à la fin de la journée de deadline
-      deadline.setHours(23, 59, 59, 999);
+    // On considère l'événement actif jusqu'à la fin de la journée de deadline
+    deadline.setHours(23, 59, 59, 999);
 
-      if (event.status === "done" || event.status === "canceled") {
-        return false;
-      }
+    if (event.status === "done" || event.status === "canceled") {
+      return false;
+    }
 
-      return deadline < now;
-    },
-    []
-  );
+    return deadline < now;
+  }, []);
 
   // Récupération de l'événement (toutes colonnes, y compris enable_notifications)
   const fetchEvent = useCallback(async () => {
@@ -77,8 +78,16 @@ const EventDetailsPage = () => {
       const data = await eventService.getEvent(id);
       console.log("EVENT DETAIL:", data);
       setEvent(data);
-      // 🆕 initialise l'état du switch selon enable_notifications
+      // initialise l'état du switch selon enable_notifications
       setNotificationsEnabled(data?.enable_notifications !== false);
+      // initialise le champ date (format YYYY-MM-DD pour l'input)
+      if (data?.deadline) {
+        const d = new Date(data.deadline);
+        const iso = d.toISOString().split("T")[0];
+        setNewDeadline(iso);
+      } else {
+        setNewDeadline("");
+      }
     } catch (err) {
       console.error("Erreur récupération événement:", err);
       toast.error("Impossible de charger l’événement.");
@@ -91,7 +100,7 @@ const EventDetailsPage = () => {
     fetchEvent();
   }, [fetchEvent]);
 
-  // 🆕 gérer le toggle des notifications pour cet événement
+  // gérer le toggle des notifications pour cet événement
   const handleToggleNotifications = async () => {
     if (!event) return;
 
@@ -211,10 +220,68 @@ const EventDetailsPage = () => {
                   <> • Date limite vidéos : {formatDate(event.deadline)}</>
                 )}
               </p>
+
+              {/* Bloc modification de la date limite (uniquement propriétaire, avant vidéo finale) */}
+              {isOwner &&
+                !event.final_video_path &&
+                event.status !== "done" && (
+                  <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <label className="text-xs font-medium text-gray-700">
+                      Modifier la date limite
+                    </label>
+
+                    <input
+                      type="date"
+                      className="mt-2 w-full text-sm border border-gray-300 rounded-md px-3 py-2"
+                      value={newDeadline}
+                      onChange={(e) => setNewDeadline(e.target.value)}
+                      min={new Date().toISOString().split("T")[0]} // pas de date passée
+                    />
+
+                    <button
+                      disabled={!newDeadline || updatingDeadline}
+                      onClick={async () => {
+                        // Sécurité côté front : on re-vérifie qu'il n'y a pas de vidéo finale
+                        if (event.final_video_path || event.status === "done") {
+                          toast.error(
+                            "Impossible de modifier la date limite après génération de la vidéo finale."
+                          );
+                          return;
+                        }
+
+                        setUpdatingDeadline(true);
+
+                        try {
+                          const updated = await eventService.updateDeadline(
+                            event.id,
+                            newDeadline
+                          );
+
+                          setEvent(updated);
+                          toast.success(
+                            "Date limite mise à jour avec succès !"
+                          );
+                        } catch (err) {
+                          console.error("Erreur updateDeadline:", err);
+                          toast.error(
+                            err.message || "Erreur mise à jour date limite"
+                          );
+                        } finally {
+                          setUpdatingDeadline(false);
+                        }
+                      }}
+                      className="mt-3 w-full px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
+                    >
+                      {updatingDeadline
+                        ? "Mise à jour..."
+                        : "Mettre à jour la date limite"}
+                    </button>
+                  </div>
+                )}
             </div>
 
             <div className="flex flex-col items-end gap-2">
-              {/* 🆕 Switch notifications (visible uniquement pour le créateur) */}
+              {/* Switch notifications (visible uniquement pour le créateur) */}
               {isOwner && (
                 <button
                   type="button"

@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import invitationService from '../services/invitationService';
+import supabase from '../lib/supabaseClient';
 
 const ManageParticipantsPage = () => {
   const { eventId } = useParams();
@@ -14,8 +15,9 @@ const ManageParticipantsPage = () => {
   const { user } = useAuth();
 
   const [event, setEvent] = useState(null);
-  const [participants, setParticipants] = useState([]);   // invités avec compte (user_id)
-  const [invitations, setInvitations] = useState([]);     // TOUTES les invitations (emails)
+  const [participants, setParticipants] = useState([]);   // invités ayant un compte + info has_submitted
+  const [invitations, setInvitations] = useState([]);     // toutes les invitations (emails)
+  const [invitationStatusByEmail, setInvitationStatusByEmail] = useState({}); // { email: { hasAccount, hasSubmitted } }
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [emails, setEmails] = useState('');
@@ -49,6 +51,96 @@ const ManageParticipantsPage = () => {
     return new Date(dateString).toLocaleDateString('fr-FR', options);
   };
 
+  // 🔎 Construit participants + statut par email à partir des invitations + profiles + videos
+  const computeParticipantsAndStatus = async (invList) => {
+    const result = {
+      participantsList: [],
+      byEmail: {},
+    };
+
+    if (!invList || invList.length === 0) {
+      return result;
+    }
+
+    // Emails uniques (normalisés)
+    const rawEmails = invList
+      .map((inv) => (typeof inv.email === 'string' ? inv.email.trim() : ''))
+      .filter((e) => e !== '');
+
+    const uniqueEmails = Array.from(new Set(rawEmails));
+
+    if (uniqueEmails.length === 0) {
+      return result;
+    }
+
+    // 1) Récupérer les profils pour ces emails
+    const { data: profiles, error: profilesError } = await supabase
+      .from('profiles')
+      .select('id, email')
+      .in('email', uniqueEmails);
+
+    if (profilesError) {
+      console.error('Erreur chargement profils pour participants :', profilesError);
+      return result;
+    }
+
+    const profilesByEmail = {};
+    (profiles || []).forEach((p) => {
+      if (typeof p.email === 'string') {
+        profilesByEmail[p.email.trim()] = p;
+      }
+    });
+
+    const profileIds = (profiles || []).map((p) => p.id);
+
+    let videosByUserId = new Set();
+
+    // 2) Récupérer les vidéos pour ces profils sur cet event
+    if (profileIds.length > 0) {
+      const { data: videos, error: videosError } = await supabase
+        .from('videos')
+        .select('id, user_id')
+        .eq('event_id', eventId)
+        .in('user_id', profileIds);
+
+      if (videosError) {
+        console.error('Erreur chargement vidéos pour participants :', videosError);
+      } else if (videos && videos.length > 0) {
+        videosByUserId = new Set(videos.map((v) => v.user_id));
+      }
+    }
+
+    const byEmail = {};
+    const participantsList = [];
+
+    // 3) Construire le statut par email + la liste des participants
+    for (const inv of invList) {
+      const email = typeof inv.email === 'string' ? inv.email.trim() : '';
+      if (!email) continue;
+
+      const profile = profilesByEmail[email] || null;
+      const hasAccount = !!profile;
+      const hasSubmitted = !!(profile && videosByUserId.has(profile.id));
+
+      byEmail[email] = {
+        hasAccount,
+        hasSubmitted,
+      };
+
+      if (hasAccount) {
+        participantsList.push({
+          ...inv,
+          profile_id: profile.id,
+          has_submitted: hasSubmitted,
+        });
+      }
+    }
+
+    result.participantsList = participantsList;
+    result.byEmail = byEmail;
+    return result;
+  };
+
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -58,10 +150,15 @@ const ManageParticipantsPage = () => {
 
         // Récupération des invitations en base
         const invList = await invitationService.getInvitations(eventId);
-        setInvitations(invList || []);
+        const safeInvList = invList || [];
+        setInvitations(safeInvList);
 
-        // Participants = invitations qui ont un user_id (compte Grega Play créé)
-        setParticipants((invList || []).filter((inv) => inv.user_id));
+        // Participants + statut par email
+        const { participantsList, byEmail } =
+          await computeParticipantsAndStatus(safeInvList);
+
+        setParticipants(participantsList);
+        setInvitationStatusByEmail(byEmail);
       } catch (err) {
         console.error('Erreur chargement participants :', err);
         setError("Erreur lors du chargement des données");
@@ -104,8 +201,14 @@ const ManageParticipantsPage = () => {
 
       // Recharger les invitations après envoi
       const updated = await invitationService.getInvitations(eventId);
-      setInvitations(updated || []);
-      setParticipants((updated || []).filter((inv) => inv.user_id));
+      const safeUpdated = updated || [];
+      setInvitations(safeUpdated);
+
+      const { participantsList, byEmail } =
+        await computeParticipantsAndStatus(safeUpdated);
+
+      setParticipants(participantsList);
+      setInvitationStatusByEmail(byEmail);
 
       setEmails('');
       setMessage('');
@@ -118,7 +221,7 @@ const ManageParticipantsPage = () => {
     }
   };
 
-  // ✅ Nouvelle fonction : relancer les participants sans vidéo
+  // ✅ Relancer les participants sans vidéo (appel backend)
   const handleRemindPending = async () => {
     if (!event) return;
 
@@ -268,7 +371,7 @@ const ManageParticipantsPage = () => {
                   Participants actuels
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  Liste des personnes invitées <strong>ayant créé un compte</strong>.
+                  Liste des personnes invitées <strong>ayant créé un compte Grega Play</strong>, avec l&apos;état de leur vidéo.
                 </p>
               </div>
               <span className="text-xs font-medium text-gray-500 bg-gray-100 rounded-full px-3 py-1">
@@ -294,7 +397,7 @@ const ManageParticipantsPage = () => {
                           {p.email}
                         </span>
                         <span className="text-xs text-gray-500">
-                          Statut : {p.status || 'invité'}
+                          Statut invitation : {p.status || 'envoyée'}
                         </span>
                       </div>
                       <div className="flex flex-wrap gap-2">
@@ -315,7 +418,7 @@ const ManageParticipantsPage = () => {
             </div>
           </div>
 
-          {/* 🆕 Carte Invitations envoyées (TOUS les invités) */}
+          {/* Carte Invitations envoyées (TOUS les invités) */}
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
               <div>
@@ -339,29 +442,48 @@ const ManageParticipantsPage = () => {
                 </div>
               ) : (
                 <ul className="divide-y divide-gray-100">
-                  {invitations.map((inv) => (
-                    <li
-                      key={inv.id || inv.email}
-                      className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
-                    >
-                      <div className="flex flex-col">
-                        <span className="text-sm text-gray-900">
-                          {inv.email}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          Statut invitation : {inv.status || 'envoyée'}
-                        </span>
-                        <span className="text-xs text-gray-500">
-                          Compte Grega Play :{" "}
-                          {inv.user_id ? (
-                            <span className="text-emerald-600 font-medium">créé</span>
+                  {invitations.map((inv) => {
+                    const email = typeof inv.email === 'string' ? inv.email.trim() : '';
+                    const status = invitationStatusByEmail[email] || {
+                      hasAccount: false,
+                      hasSubmitted: false,
+                    };
+
+                    return (
+                      <li
+                        key={inv.id || inv.email}
+                        className="py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1"
+                      >
+                        <div className="flex flex-col">
+                          <span className="text-sm text-gray-900">
+                            {inv.email}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Statut invitation : {inv.status || 'envoyée'}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            Compte Grega Play :{" "}
+                            {status.hasAccount ? (
+                              <span className="text-emerald-600 font-medium">créé</span>
+                            ) : (
+                              <span className="text-gray-600">non créé</span>
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          {status.hasSubmitted ? (
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-purple-100 text-purple-800">
+                              Vidéo soumise
+                            </span>
                           ) : (
-                            <span className="text-gray-600">non créé</span>
+                            <span className="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-gray-100 text-gray-600">
+                              En attente de vidéo
+                            </span>
                           )}
-                        </span>
-                      </div>
-                    </li>
-                  ))}
+                        </div>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
             </div>

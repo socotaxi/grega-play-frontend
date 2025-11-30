@@ -34,8 +34,8 @@ const eventService = {
         user_id,
         created_at,
         public_code,
-        media_url,         -- ✅ NOUVEAU : URL du média d'illustration
-        final_video_path   -- ✅ (utile pour la vidéo finale si tu l'utilises)
+        media_url,
+        final_video_path
       `)
       .eq('id', eventId)
       .single();
@@ -62,7 +62,6 @@ const eventService = {
   },
 
   // ✅ Créer un event
-  // ⬇⬇⬇ MODIF ICI : on ajoute media_url dans la signature et l'insert
   async createEvent({
     title,
     description,
@@ -71,8 +70,8 @@ const eventService = {
     videoDuration,
     maxClipDuration,
     userId,
-    public_code,     // ✅ on récupère bien public_code depuis le payload
-    media_url,       // ✅ NOUVEAU : URL du média envoyée depuis CreateEventPage
+    public_code,
+    media_url,
   }) {
     const { data, error } = await supabase
       .from('events')
@@ -85,8 +84,8 @@ const eventService = {
           video_duration: videoDuration,
           max_clip_duration: maxClipDuration,
           user_id: userId,
-          public_code: public_code,  // ✅ on l'enregistre dans la colonne Supabase
-          media_url: media_url,      // ✅ on enregistre aussi le média
+          public_code: public_code,
+          media_url: media_url,
         },
       ])
       .select()
@@ -152,7 +151,9 @@ const eventService = {
   // ✅ Récupérer les stats (invitations / vidéos / en attente) depuis le backend Node
   async getEventStats(eventId) {
     if (!API_BASE_URL || !API_KEY) {
-      console.error("Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY).");
+      console.error(
+        "Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY)."
+      );
       // On renvoie des valeurs neutres pour ne pas casser l'affichage
       return {
         totalInvitations: 0,
@@ -174,6 +175,23 @@ const eventService = {
     if (!res.ok) {
       console.error('❌ Erreur API getEventStats:', data);
       throw new Error(data.error || 'Erreur récupération stats événement');
+    }
+
+    return data;
+  },
+
+  // ✅ Mettre à jour la date limite d'un événement
+  async updateDeadline(eventId, newDeadline) {
+    const { data, error } = await supabase
+      .from('events')
+      .update({ deadline: newDeadline })
+      .eq('id', eventId)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Erreur updateDeadline:', error);
+      throw new Error('Impossible de mettre à jour la date limite');
     }
 
     return data;

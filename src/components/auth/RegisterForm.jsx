@@ -182,6 +182,36 @@ const RegisterForm = () => {
 
       if (error) throw error;
 
+      // 🔗 Lier l'inscription aux invitations existantes (email identique)
+      try {
+        const { data: userRes, error: userErr } = await supabase.auth.getUser();
+        if (!userErr && userRes?.user?.email) {
+          const userEmail = userRes.user.email;
+          const userId = userRes.user.id;
+
+          // Récupérer toutes les invitations pour cet email
+          const { data: invitations, error: invErr } = await supabase
+            .from("invitations")
+            .select("*")
+            .eq("email", userEmail);
+
+          if (!invErr && invitations && invitations.length > 0) {
+            const ids = invitations.map((inv) => inv.id);
+            await supabase
+              .from("invitations")
+              .update({
+                user_id: userId,
+                status: "accepted",
+                accepted_at: new Date().toISOString(),
+              })
+              .in("id", ids);
+          }
+        }
+      } catch (linkErr) {
+        console.error("Erreur association invitation → user:", linkErr);
+        // On ne bloque pas l'inscription si le lien échoue
+      }
+
       toast.success("Inscription réussie !");
       navigate("/check-email", { state: { email: formData.email } });
     } catch (err) {
@@ -409,7 +439,7 @@ const RegisterForm = () => {
           onChange={handleChange}
           className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
         />
-        <label className="ml-2 block text-sm text-gray-900">
+        <label className="ml-2 block text	sm text-gray-900">
           Recevoir les actualités et offres
         </label>
       </div>
