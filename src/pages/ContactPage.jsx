@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import emailService from '../services/emailService';
 import MainLayout from '../components/layout/MainLayout';
 import Button from '../components/ui/Button';
 import { toast } from 'react-toastify';
@@ -8,8 +9,10 @@ const ContactPage = () => {
     name: '',
     email: '',
     message: '',
+    website: '', // champ honeypot anti-spam
   });
   const [submitting, setSubmitting] = useState(false);
+  const [formCreatedAt] = useState(() => Date.now());
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -20,35 +23,46 @@ const ContactPage = () => {
     e.preventDefault();
     setSubmitting(true);
 
-    try {
-      const response = await fetch('/functions/v1/send-contact-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: 'contact@grega-play.com',
-          subject: `📩 Message depuis Grega Play - ${formData.name}`,
-          content: `
-Nom : ${formData.name}
-Email : ${formData.email}
+    // Anti-spam simple : si le champ caché est rempli, on ne soumet pas réellement
+    if (formData.website && formData.website.trim().length > 0) {
+      console.warn('Spam détecté via le champ honeypot, requête ignorée.');
+      // On simule un succès pour ne pas donner d'indice au bot
+      toast.success('Votre message a été envoyé avec succès.');
+      setFormData({ name: '', email: '', message: '', website: '' });
+      setSubmitting(false);
+      return;
+    }
 
-Message :
-${formData.message}
-          `,
-        }),
+    // Anti-spam simple : si le formulaire est soumis trop vite (< 3s), on bloque
+    const now = Date.now();
+    if (now - formCreatedAt < 3000) {
+      toast.error('Envoi trop rapide détecté. Merci de réessayer.');
+      setSubmitting(false);
+      return;
+    }
+
+    try {
+      const htmlContent = emailService.generateContactEmailTemplate({
+        name: formData.name,
+        fromEmail: formData.email,
+        message: formData.message,
+        submittedAt: new Date().toISOString(),
       });
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Erreur function:', errorText);
-        toast.error("Erreur lors de l'envoi de l'email.");
-        return;
-      }
+      // 🔁 On passe maintenant par le backend Node /api/email/contact
+      await emailService.sendContactMessage({
+        email: 'edhemrombhot@gmail.com', // destinataire côté backend
+        subject: `📩 Message depuis Grega Play - ${formData.name}`,
+        content: htmlContent,
+        website: formData.website,
+        formCreatedAt,
+      });
 
       toast.success('Votre message a été envoyé avec succès.');
-      setFormData({ name: '', email: '', message: '' });
+      setFormData({ name: '', email: '', message: '', website: '' });
     } catch (err) {
-      console.error('Erreur de soumission:', err);
-      toast.error("Une erreur s'est produite.");
+      console.error('Erreur function:', err);
+      toast.error("Erreur lors de l'envoi de l'email.");
     } finally {
       setSubmitting(false);
     }
@@ -143,6 +157,19 @@ ${formData.message}
                     required
                     className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none"
                     placeholder="Explique-nous en quelques lignes ce que tu souhaites."
+                  />
+                </div>
+
+                {/* Champ honeypot anti-spam (ne doit pas être rempli par un humain) */}
+                <div className="hidden">
+                  <label htmlFor="website">Laissez ce champ vide</label>
+                  <input
+                    type="text"
+                    name="website"
+                    id="website"
+                    value={formData.website}
+                    onChange={handleChange}
+                    autoComplete="off"
                   />
                 </div>
 
