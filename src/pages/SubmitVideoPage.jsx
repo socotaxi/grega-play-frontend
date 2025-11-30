@@ -29,11 +29,16 @@ const SubmitVideoPage = () => {
   const [error, setError] = useState(null);
   const [existingVideo, setExistingVideo] = useState(null);
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [isInvited, setIsInvited] = useState(true);
 
-  const participantName =
+  // Nom affiché dans l'UI
+  const displayName =
     profile?.full_name && profile.full_name !== "User"
       ? profile.full_name
       : user?.email || "Invité";
+
+  // Email utilisé comme identifiant interne (participant_name = email)
+  const participantEmail = user?.email || "";
 
   useEffect(() => {
     const fetchEventDetails = async () => {
@@ -50,6 +55,33 @@ const SubmitVideoPage = () => {
         if (endDate < new Date()) {
           setError('La date limite de cet événement est dépassée.');
         }
+
+        // 🔒 Déterminer si l'utilisateur est le créateur
+        const isCreatorLocal =
+          user?.id && eventData?.user_id && eventData.user_id === user.id;
+
+        if (isCreatorLocal) {
+          // Le créateur est considéré comme "invité" d'office
+          setIsInvited(true);
+        } else if (participantEmail) {
+          // 🔒 Vérifier que l'utilisateur (email) est bien invité à cet évènement
+          const { data: invites, error: inviteErr } = await supabase
+            .from("invitations")
+            .select("email")
+            .eq("event_id", eventId)
+            .eq("email", participantEmail);
+
+          if (inviteErr) {
+            console.error("Erreur vérification invitation:", inviteErr);
+          }
+
+          const invited = invites && invites.length > 0;
+          setIsInvited(!!invited);
+
+          if (!invited) {
+            setError("Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.");
+          }
+        }
       } catch (err) {
         console.error('Erreur chargement événement:', err);
         setError("Impossible de charger les détails de l'événement.");
@@ -59,7 +91,7 @@ const SubmitVideoPage = () => {
     };
 
     fetchEventDetails();
-  }, [eventId]);
+  }, [eventId, participantEmail, user]);
 
   useEffect(() => {
     const checkExistingVideo = async () => {
@@ -90,15 +122,21 @@ const SubmitVideoPage = () => {
     ? new Date(event.deadline) < now
     : false;
   const isEventClosed = event?.status && event.status !== "open";
-  const canUpload = !isEventExpired && !isEventClosed;
+
+  // Le créateur de l'évènement doit toujours pouvoir envoyer une vidéo
+  const isCreator =
+    user?.id && event?.user_id && user.id === event.user_id;
+
+  // On peut uploader si événement ouvert + (invité OU créateur)
+  const canUpload = !isEventExpired && !isEventClosed && (isInvited || isCreator);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 🔒 Double garde-fou : si l'événement est expiré/fermé, on bloque
+    // 🔒 Double garde-fou : si l'événement est expiré/fermé ou non autorisé, on bloque
     if (!canUpload) {
-      setError("Cet événement est terminé. Vous ne pouvez plus envoyer de vidéo.");
+      setError("Cet événement est terminé ou vous n'êtes pas autorisé à envoyer une vidéo.");
       e.target.value = null;
       return;
     }
@@ -166,6 +204,12 @@ const SubmitVideoPage = () => {
       return;
     }
 
+    // Si ce n'est pas le créateur, il doit être invité et avoir un email
+    if (!isCreator && (!isInvited || !participantEmail)) {
+      setError("Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.");
+      return;
+    }
+
     if (!selectedFile || !(selectedFile instanceof File)) {
       setError("Veuillez sélectionner un fichier vidéo valide.");
       return;
@@ -196,14 +240,14 @@ const SubmitVideoPage = () => {
 
     try {
       // Upload de la vidéo (passera ensuite par les garde-fous backend)
-      await videoService.uploadVideo(eventId, user.id, selectedFile, participantName);
+      await videoService.uploadVideo(eventId, user.id, selectedFile, participantEmail);
 
       // Log dans le feed d'activité
       await activityService.logActivity({
         event_id: eventId,
         user_id: user?.id || null,
         type: "uploaded_video",
-        message: `${participantName} a posté une vidéo 🎥`,
+        message: `${displayName} a posté une vidéo 🎥`,
       });
 
       // Upload terminé → on termine la barre à 100 %
@@ -253,6 +297,12 @@ const SubmitVideoPage = () => {
           </div>
         )}
 
+        {!isInvited && !isCreator && (
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+            Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.
+          </div>
+        )}
+
         {existingVideo && (
           <div className="mb-6 bg-white p-4 border rounded shadow">
             <h3 className="text-lg font-medium text-gray-900 mb-2">🎬 Vidéo déjà envoyée</h3>
@@ -276,14 +326,14 @@ const SubmitVideoPage = () => {
         <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
           <div>
             <label className="block text-sm font-medium text-gray-700">Participant</label>
-            <p className="mt-1 text-gray-900 font-medium">{participantName}</p>
+            <p className="mt-1 text-gray-900 font-medium">{displayName}</p>
           </div>
 
-          {/* On n'affiche le bloc d'upload QUE si l'événement accepte encore des vidéos */}
+          {/* On n'affiche le bloc d'upload QUE si l'événement accepte encore des vidéos et que l'utilisateur est invité ou créateur */}
           {!existingVideo && canUpload && (
             <>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Vidéo</label>
+                <label className="block text	sm font-medium text-gray-700">Vidéo</label>
                 <input
                   type="file"
                   accept="video/*"

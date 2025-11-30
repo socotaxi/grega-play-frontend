@@ -16,6 +16,9 @@ const PublicEventPage = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // 🔒 nouvel état : savoir si l'utilisateur connecté est invité ou non
+  const [isInvited, setIsInvited] = useState(null);
+
   // Détecter si l'événement est expiré (deadline dépassée)
   const isEventExpired = useCallback((evt) => {
     if (!evt?.deadline) return false;
@@ -71,19 +74,60 @@ const PublicEventPage = () => {
     }
   }, [publicCode]);
 
+  // 🔒 Vérifier côté PublicEventPage si l'utilisateur connecté est bien invité
+  useEffect(() => {
+    const checkInvitation = async () => {
+      if (!user || !event?.id) {
+        setIsInvited(null);
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from("invitations")
+          .select("id")
+          .eq("event_id", event.id)
+          .eq("email", user.email);
+
+        if (error) {
+          console.error("Erreur vérification invitation (PublicEventPage):", error);
+          setIsInvited(null);
+          return;
+        }
+
+        setIsInvited(data && data.length > 0);
+      } catch (err) {
+        console.error("Erreur inattendue vérification invitation (PublicEventPage):", err);
+        setIsInvited(null);
+      }
+    };
+
+    if (user && event?.id) {
+      checkInvitation();
+    } else {
+      setIsInvited(null);
+    }
+  }, [user, event]);
+
   const handleParticipate = () => {
     // Si participation fermée, on ne fait rien
     if (isParticipationClosed) {
       return;
     }
 
+    // Si pas connecté → login
     if (!user) {
       navigate("/login");
       return;
     }
 
+    // Si connecté mais explicitement non invité → pas de redirection vers l'event
+    if (isInvited === false) {
+      return;
+    }
+
     if (event?.id) {
-      // Tu peux ensuite rediriger vers la page d’envoi de vidéo
+      // Redirection vers la page d’événement (où se fera l’upload)
       navigate(`/events/${event.id}`);
     } else {
       navigate("/dashboard");
@@ -213,6 +257,7 @@ const PublicEventPage = () => {
 
         {/* Bloc participation */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-3">
+          {/* 1. Non connecté, participation ouverte */}
           {!user && !isParticipationClosed && (
             <>
               <p className="text-sm text-gray-700">
@@ -225,6 +270,7 @@ const PublicEventPage = () => {
             </>
           )}
 
+          {/* 2. Non connecté, participation fermée */}
           {!user && isParticipationClosed && (
             <>
               <p className="text-sm text-gray-700">
@@ -234,7 +280,23 @@ const PublicEventPage = () => {
             </>
           )}
 
-          {user && !isParticipationClosed && (
+          {/* 3. Connecté, participation ouverte, mais NON invité → message spécifique */}
+          {user && !isParticipationClosed && isInvited === false && (
+            <>
+              <p className="text-sm text-gray-700">
+                Vous êtes connecté en tant que{" "}
+                <span className="font-semibold">{user.email}</span>.
+              </p>
+              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                Vous ne faites pas partie des invités de cet événement.
+                Vous pouvez consulter les informations ci-dessus,
+                mais vous ne pourrez pas envoyer de vidéo pour cet événement.
+              </p>
+            </>
+          )}
+
+          {/* 4. Connecté, participation ouverte, invité (ou check en cours) */}
+          {user && !isParticipationClosed && (isInvited === true || isInvited === null) && (
             <>
               <p className="text-sm text-gray-700">
                 Vous êtes connecté en tant que{" "}
@@ -244,12 +306,13 @@ const PublicEventPage = () => {
                 Cliquez sur le bouton ci-dessous pour accéder à la page de
                 l’événement dans l’application et envoyer votre vidéo.
               </p>
-              <Button onClick={handleParticipate} className="w-full">
+              <Button onClick={handleParticipate} className="w-full" disabled={isInvited === null}>
                 Participer à la vidéo
               </Button>
             </>
           )}
 
+          {/* 5. Connecté, participation fermée (peu importe l’invitation) */}
           {user && isParticipationClosed && (
             <>
               <p className="text-sm text-gray-700">
