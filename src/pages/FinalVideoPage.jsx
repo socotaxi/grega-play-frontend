@@ -36,8 +36,22 @@ const FinalVideoPage = () => {
   const [generationLabel, setGenerationLabel] = useState("");
   const [selectedVideoIds, setSelectedVideoIds] = useState([]);
 
-  const isOwner = user && event && user.id === event.user_id;
   const isPremium = profile?.plan_type === "premium";
+
+  // 👉 Admin spécial par email (Edhem)
+  const isAdminEmail = user?.email === "edhemrombhot@gmail.com";
+
+  // 👉 Premium OU Edhem peuvent régénérer
+  const isPrivilegedForRegeneration = isPremium || isAdminEmail;
+
+  // 👉 Premium OU Edhem ne sont pas limités à 5 vidéos
+  const bypassFreeLimit = isPremium || isAdminEmail;
+
+  // 👉 Propriétaire OU admin
+  const isOwner =
+    user &&
+    event &&
+    (user.id === event.user_id || user.role === "admin");
 
   // Charger vidéos soumises
   useEffect(() => {
@@ -211,8 +225,8 @@ const FinalVideoPage = () => {
 
     const isFirstGeneration = !finalVideo;
 
-    // Régénération réservée aux comptes Premium
-    if (!isFirstGeneration && !isPremium) {
+    // Régénération réservée aux comptes Premium, sauf Edhem
+    if (!isFirstGeneration && !isPrivilegedForRegeneration) {
       setError("La régénération de la vidéo finale est réservée aux comptes Premium.");
       toast.error("Fonction réservée au compte Premium.");
       return;
@@ -225,8 +239,8 @@ const FinalVideoPage = () => {
       return;
     }
 
-    // Limite de 5 vidéos en gratuit
-    if (!isPremium && selectedVideoIds.length > 5) {
+    // Limite de 5 vidéos en gratuit (Premium ou Edhem ne sont pas limités)
+    if (!bypassFreeLimit && selectedVideoIds.length > 5) {
       setError("La version gratuite permet d'utiliser au maximum 5 vidéos. Passe à Premium pour en utiliser davantage.");
       toast.error("Maximum 5 vidéos en version gratuite.");
       return;
@@ -304,11 +318,11 @@ const FinalVideoPage = () => {
     return <Loading fullPage />;
   }
 
+  // 👉 Désormais, accepte aussi 'processing' (bouton visible mais désactivé quand processing = true)
   const canStartProcessing =
     event &&
-    (event.status === 'ready' || event.status === 'open' || event.status === 'done') &&
-    user &&
-    (user.id === event.user_id || user.role === 'admin');
+    ['ready', 'open', 'done', 'processing'].includes(event.status) &&
+    isOwner;
 
   // Lien public de partage (player) basé sur public_code
   const publicShareUrl =
@@ -321,12 +335,15 @@ const FinalVideoPage = () => {
       ? `Vidéos sélectionnées : ${selectedVideoIds.length} (min 2, max 5 en gratuit)`
       : "";
 
+  // 👉 Respecte maintenant le Premium pour la limite de 5 vidéos, sauf Edhem
+  const overFreeLimit = !bypassFreeLimit && selectedVideoIds.length > 5;
+
   const generateDisabled =
     processing ||
     !isOwner ||
     !canStartProcessing ||
     selectedVideoIds.length < 2 ||
-    selectedVideoIds.length > 5;
+    overFreeLimit;
 
   return (
     <MainLayout>
@@ -473,7 +490,6 @@ const FinalVideoPage = () => {
               {/* Barre de progression similaire à l’upload */}
               {generationProgress > 0 && (
                 <div className="mt-4">
-                  {/* Texte dynamique au-dessus de la barre */}
                   {generationLabel && (
                     <p className="mb-1 text-sm text-gray-600 text-left">
                       {generationLabel}
@@ -481,7 +497,7 @@ const FinalVideoPage = () => {
                   )}
                   <div className="w-full bg-gray-200 rounded-full h-3">
                     <div
-                      className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
+                      className="bg-indigo-600 h-3 rounded-full transition-all durée-200 ease-out"
                       style={{ width: `${generationProgress}%` }}
                     ></div>
                   </div>
@@ -508,7 +524,6 @@ const FinalVideoPage = () => {
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-6">
               {submittedVideos.map((video, index) => {
                 const publicUrl = getPublicVideoUrl(video.storage_path);
-
                 const isSelected = selectedVideoIds.includes(video.id);
 
                 return (

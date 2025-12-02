@@ -99,18 +99,40 @@ const eventService = {
     return data;
   },
 
-  // ✅ Supprimer un event
+  // ✅ Supprimer un event (via backend Node → suppression en cascade)
   async deleteEvent(eventId, userId) {
-    const { error } = await supabase
-      .from('events')
-      .delete()
-      .eq('id', eventId)
-      .eq('user_id', userId);
-
-    if (error) {
-      console.error("Erreur deleteEvent:", error);
-      throw new Error("Erreur suppression événement");
+    if (!API_BASE_URL || !API_KEY) {
+      console.error(
+        'Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY).'
+      );
+      throw new Error(
+        "Configuration backend manquante pour la suppression de l'événement"
+      );
     }
+
+    const res = await fetch(`${API_BASE_URL}/api/events/${eventId}`, {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+      },
+      body: JSON.stringify({ userId }),
+    });
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (e) {
+      // pas grave si pas de JSON dans la réponse
+    }
+
+    if (!res.ok) {
+      console.error('❌ Erreur API deleteEvent:', data);
+      throw new Error(
+        data.error || "Erreur lors de la suppression de l'événement"
+      );
+    }
+
     return true;
   },
 
@@ -152,7 +174,7 @@ const eventService = {
   async getEventStats(eventId) {
     if (!API_BASE_URL || !API_KEY) {
       console.error(
-        "Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY)."
+        'Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY).'
       );
       // On renvoie des valeurs neutres pour ne pas casser l'affichage
       return {
