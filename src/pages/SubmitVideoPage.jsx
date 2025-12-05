@@ -60,8 +60,11 @@ const SubmitVideoPage = () => {
         const isCreatorLocal =
           user?.id && eventData?.user_id && eventData.user_id === user.id;
 
-        if (isCreatorLocal) {
-          // Le créateur est considéré comme "invité" d'office
+        const isPublicEvent = eventData?.is_public === true;
+
+        if (isCreatorLocal || isPublicEvent) {
+          // Le créateur et les participants d'un événement public
+          // sont considérés comme "autorisés" sans vérification d'invitation.
           setIsInvited(true);
         } else if (participantEmail) {
           // 🔒 Vérifier que l'utilisateur (email) est bien invité à cet évènement
@@ -127,8 +130,11 @@ const SubmitVideoPage = () => {
   const isCreator =
     user?.id && event?.user_id && user.id === event.user_id;
 
-  // On peut uploader si événement ouvert + (invité OU créateur)
-  const canUpload = !isEventExpired && !isEventClosed && (isInvited || isCreator);
+  const isPublicEvent = event?.is_public === true;
+
+  // On peut uploader si événement ouvert + (événement public OU invité OU créateur)
+  const canUpload =
+    !isEventExpired && !isEventClosed && (isPublicEvent || isInvited || isCreator);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
@@ -204,8 +210,9 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    // Si ce n'est pas le créateur, il doit être invité et avoir un email
-    if (!isCreator && (!isInvited || !participantEmail)) {
+    // Si ce n'est pas le créateur, il doit être invité et avoir un email,
+    // sauf si l'événement est public (dans ce cas tout utilisateur connecté peut participer)
+    if (!isCreator && !isPublicEvent && (!isInvited || !participantEmail)) {
       setError("Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.");
       return;
     }
@@ -297,7 +304,7 @@ const SubmitVideoPage = () => {
           </div>
         )}
 
-        {!isInvited && !isCreator && (
+        {!isInvited && !isCreator && !isPublicEvent && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
             Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.
           </div>

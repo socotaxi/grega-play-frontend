@@ -72,6 +72,8 @@ const eventService = {
     userId,
     public_code,
     media_url,
+    enable_notifications,
+    isPublic = false,
   }) {
     const { data, error } = await supabase
       .from('events')
@@ -86,6 +88,8 @@ const eventService = {
           user_id: userId,
           public_code: public_code,
           media_url: media_url,
+          enable_notifications: enable_notifications,
+          is_public: isPublic,
         },
       ])
       .select()

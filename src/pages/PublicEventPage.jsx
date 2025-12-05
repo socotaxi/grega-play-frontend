@@ -39,6 +39,8 @@ const PublicEventPage = () => {
       isEventExpired(event)
     : false;
 
+  const isPublicEvent = event?.is_public === true;
+
   useEffect(() => {
     const fetchEvent = async () => {
       setLoading(true);
@@ -82,6 +84,12 @@ const PublicEventPage = () => {
         return;
       }
 
+      // Si l'événement est public, tout utilisateur connecté est considéré comme "autorisé"
+      if (event.is_public === true) {
+        setIsInvited(true);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from("invitations")
@@ -121,8 +129,9 @@ const PublicEventPage = () => {
       return;
     }
 
-    // Si connecté mais explicitement non invité → pas de redirection vers l'event
-    if (isInvited === false) {
+    // Si l'événement n'est pas public et que l'utilisateur n'est pas invité explicitement,
+    // on ne redirige pas vers la page de l'événement.
+    if (!isPublicEvent && isInvited === false) {
       return;
     }
 
@@ -280,8 +289,8 @@ const PublicEventPage = () => {
             </>
           )}
 
-          {/* 3. Connecté, participation ouverte, mais NON invité → message spécifique */}
-          {user && !isParticipationClosed && isInvited === false && (
+          {/* 3. Connecté, participation ouverte, mais NON invité → message spécifique (uniquement pour événement privé) */}
+          {user && !isParticipationClosed && !isPublicEvent && isInvited === false && (
             <>
               <p className="text-sm text-gray-700">
                 Vous êtes connecté en tant que{" "}
@@ -295,8 +304,8 @@ const PublicEventPage = () => {
             </>
           )}
 
-          {/* 4. Connecté, participation ouverte, invité (ou check en cours) */}
-          {user && !isParticipationClosed && (isInvited === true || isInvited === null) && (
+          {/* 4. Connecté, participation ouverte, invité (ou check en cours) ou événement public */}
+          {user && !isParticipationClosed && (isPublicEvent || isInvited === true || isInvited === null) && (
             <>
               <p className="text-sm text-gray-700">
                 Vous êtes connecté en tant que{" "}
@@ -306,7 +315,7 @@ const PublicEventPage = () => {
                 Cliquez sur le bouton ci-dessous pour accéder à la page de
                 l’événement dans l’application et envoyer votre vidéo.
               </p>
-              <Button onClick={handleParticipate} className="w-full" disabled={isInvited === null}>
+              <Button onClick={handleParticipate} className="w-full" disabled={!isPublicEvent && isInvited === null}>
                 Participer à la vidéo
               </Button>
             </>

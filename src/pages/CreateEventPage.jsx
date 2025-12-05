@@ -52,6 +52,7 @@ const CreateEventPage = () => {
     endDate: "",
     participants: [],
     enableNotifications: true, // 🆕 toggle "Recevoir les notifications"
+    isPublic: false, // événement privé par défaut
   });
 
   const [loading, setLoading] = useState(false);
@@ -123,10 +124,15 @@ const CreateEventPage = () => {
       return;
     }
 
-    // Vérification obligatoire : au moins un email invité
-    if (!formData.participants || formData.participants.length === 0) {
+    // Vérification des participants :
+    // ✅ Event privé → au moins un email invité
+    // ✅ Event public → peut démarrer sans invitation, partage uniquement par lien
+    if (
+      !formData.isPublic &&
+      (!formData.participants || formData.participants.length === 0)
+    ) {
       toast.error(
-        "Tu dois entrer au moins une adresse email pour inviter quelqu’un."
+        "Pour un événement privé, tu dois inviter au moins une personne par email."
       );
       return;
     }
@@ -168,6 +174,7 @@ const CreateEventPage = () => {
         public_code: publicCode,
         media_url: mediaUrl,
         enable_notifications: formData.enableNotifications, // 🆕 envoyé au backend
+        isPublic: formData.isPublic,
       });
 
       // 🆕 si l'utilisateur a choisi de recevoir les notifs, on l'abonne aux push
@@ -181,13 +188,15 @@ const CreateEventPage = () => {
         }
       }
 
-      await invitationService.addInvitations(
-        event.id,
-        formData.participants,
-        "",
-        event,
-        user
-      );
+      if (formData.participants.length > 0) {
+        await invitationService.addInvitations(
+          event.id,
+          formData.participants,
+          "",
+          event,
+          user
+        );
+      }
 
       toast.success("Événement créé avec succès");
 
@@ -363,6 +372,26 @@ const CreateEventPage = () => {
                       Recevoir les notifications
                       <span className="block text-[11px] text-gray-500">
                         Tu seras prévenu(e) quand une vidéo arrive.
+                      </span>
+                    </label>
+                  </div>
+
+                  <div className="mt-2 flex items-start gap-2">
+                    <input
+                      id="isPublic"
+                      name="isPublic"
+                      type="checkbox"
+                      checked={formData.isPublic}
+                      onChange={handleChange}
+                      className="mt-1 h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+                    />
+                    <label
+                      htmlFor="isPublic"
+                      className="text-[12px] text-gray-700"
+                    >
+                      Rendre l’événement public
+                      <span className="block text-[11px] text-gray-500">
+                        Public : toute personne ayant le lien peut envoyer une vidéo. Privé : seuls les invités par email peuvent participer.
                       </span>
                     </label>
                   </div>

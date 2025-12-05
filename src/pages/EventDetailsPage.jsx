@@ -18,6 +18,8 @@ const EventDetailsPage = () => {
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
 
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
+
   // Switch notifications
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [updatingNotifications, setUpdatingNotifications] = useState(false);
@@ -138,6 +140,41 @@ const EventDetailsPage = () => {
     }
   };
 
+
+  const handleToggleVisibility = async () => {
+    if (!event) return;
+
+    const newValue = !isPublicEvent;
+    setUpdatingVisibility(true);
+
+    try {
+      const { data, error } = await supabase
+        .from("events")
+        .update({ is_public: newValue })
+        .eq("id", event.id)
+        .select()
+        .single();
+
+      if (error) {
+        console.error("Erreur update is_public:", error);
+        toast.error("Impossible de changer la visibilité");
+        setUpdatingVisibility(false);
+        return;
+      }
+
+      setEvent(data);
+      toast.success(
+        newValue
+          ? "L'événement est maintenant public : toute personne avec le lien peut envoyer une vidéo."
+          : "L'événement est maintenant privé : seules les personnes invitées par email peuvent envoyer une vidéo."
+      );
+    } catch (err) {
+      console.error("Erreur inattendue update visibilité:", err);
+      toast.error("Erreur lors du changement de visibilité");
+    } finally {
+      setUpdatingVisibility(false);
+    }
+  };
   if (loading) {
     return (
       <MainLayout>
@@ -165,6 +202,7 @@ const EventDetailsPage = () => {
   const isOwner = event.user_id === user?.id;
   const statusInfo = getStatusInfo(event.status);
   const expired = isEventExpired(event);
+  const isPublicEvent = event.is_public === true;
 
   const publicUrl = event.public_code
     ? `${window.location.origin}/e/${event.public_code}`
@@ -283,32 +321,61 @@ const EventDetailsPage = () => {
             <div className="flex flex-col items-end gap-2">
               {/* Switch notifications (visible uniquement pour le créateur) */}
               {isOwner && (
-                <button
-                  type="button"
-                  onClick={handleToggleNotifications}
-                  disabled={updatingNotifications}
-                  className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[11px] font-medium
-                    ${
-                      notificationsEnabled
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-gray-50 text-gray-600 border-gray-200"
-                    }`}
-                >
-                  <span
-                    className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
-                      ${notificationsEnabled ? "bg-emerald-500" : "bg-gray-300"}`}
+                <>
+                  <button
+                    type="button"
+                    onClick={handleToggleNotifications}
+                    disabled={updatingNotifications}
+                    className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[11px] font-medium
+                      ${
+                        notificationsEnabled
+                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                          : "bg-gray-50 text-gray-600 border-gray-200"
+                      }`}
                   >
                     <span
-                      className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
-                        ${notificationsEnabled ? "translate-x-3" : "translate-x-1"}`}
-                    />
-                  </span>
-                  {updatingNotifications
-                    ? "Mise à jour..."
-                    : notificationsEnabled
-                    ? "Notifications activées"
-                    : "Notifications désactivées"}
-                </button>
+                      className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
+                        ${notificationsEnabled ? "bg-emerald-500" : "bg-gray-300"}`}
+                    >
+                      <span
+                        className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
+                          ${notificationsEnabled ? "translate-x-3" : "translate-x-1"}`}
+                      />
+                    </span>
+                    {updatingNotifications
+                      ? "Mise à jour..."
+                      : notificationsEnabled
+                      ? "Notifications activées"
+                      : "Notifications désactivées"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleToggleVisibility}
+                    disabled={updatingVisibility}
+                    className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[11px] font-medium mt-1
+                      ${
+                        isPublicEvent
+                          ? "bg-sky-50 text-sky-700 border-sky-200"
+                          : "bg-gray-50 text-gray-600 border-gray-200"
+                      }`}
+                  >
+                    <span
+                      className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
+                        ${isPublicEvent ? "bg-sky-500" : "bg-gray-300"}`}
+                    >
+                      <span
+                        className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
+                          ${isPublicEvent ? "translate-x-3" : "translate-x-1"}`}
+                      />
+                    </span>
+                    {updatingVisibility
+                      ? "Changement de visibilité..."
+                      : isPublicEvent
+                      ? "Événement public"
+                      : "Événement privé"}
+                  </button>
+                </>
               )}
 
               <div className="flex flex-wrap justify-end gap-2">
@@ -317,6 +384,11 @@ const EventDetailsPage = () => {
                 >
                   {statusInfo.label}
                 </span>
+
+                <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-700">
+                  {isPublicEvent ? "Public" : "Privé"}
+                </span>
+
                 {expired && (
                   <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-red-100 text-red-800">
                     Expiré
@@ -413,7 +485,7 @@ const EventDetailsPage = () => {
                   to={`/events/${event.id}/manage-participants`}
                   className="w-full sm:w-auto"
                 >
-                  <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 border border-indigo-600 text-indigo-600 bg-white hover:bg-indigo-50">
+                  <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 inline-flex justify-center">
                     Inviter des participants
                   </Button>
                 </Link>

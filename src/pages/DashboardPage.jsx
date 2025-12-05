@@ -511,6 +511,7 @@ const DashboardPage = () => {
                       {sortedEvents.map((event) => {
                         const status = getStatusInfo(event.status);
                         const hasFinalVideo = !!event.final_video_url;
+                        const isPublicEvent = event.is_public === true;
 
                         const publicUrl = event.public_code
                           ? `${window.location.origin}/e/${event.public_code}`
@@ -613,6 +614,11 @@ const DashboardPage = () => {
                                         className={`inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full ${status.color}`}
                                       >
                                         {status.label}
+                                      </span>
+
+                                      {/* Public / Privé */}
+                                      <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-700">
+                                        {isPublicEvent ? "Public" : "Privé"}
                                       </span>
 
                                       {isEventExpired(event) && (
