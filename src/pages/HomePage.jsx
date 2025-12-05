@@ -490,19 +490,7 @@ const HomePage = () => {
                 </h2>
               </div>
             </div>
-
-            <p className="text-xs text-gray-600 mb-3">
-              Ajoute Grega Play à ton écran d’accueil pour créer et suivre tes évènements
-              comme une vraie application, en plein écran.
-            </p>
-
-            <ul className="text-[11px] text-gray-600 space-y-1.5 mb-4 list-disc list-inside">
-              <li>Accès direct depuis ton écran d’accueil</li>
-              <li>Expérience plein écran, sans barre d’adresse</li>
-              <li>Idéal pour enregistrer et regarder les vidéos</li>
-            </ul>
-
-            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+           <div className="flex flex-col sm:flex-row gap-2 mt-2">
               <Button
                 onClick={() => handleInstallClick('home_modal')}
                 className="w-full py-2 text-sm font-semibold"
