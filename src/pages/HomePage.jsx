@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
+import supabase from '../lib/supabaseClient';
 
 const HomePage = () => {
   const { user } = useAuth();
@@ -12,6 +13,105 @@ const HomePage = () => {
   const secondaryCtaLink = user ? '/dashboard' : '/login';
   const secondaryCtaLabel = user ? 'Voir mes événements' : 'Se connecter';
 
+  // --- Gestion du popup d'installation PWA ---
+  const [deferredPrompt, setDeferredPrompt] = useState(null);
+  const [showInstallModal, setShowInstallModal] = useState(false);
+
+  // --- Tracking basique des clics sur "Installer Grega Play" ---
+  const trackInstallClick = async (source = 'home_modal') => {
+    try {
+      await supabase.from('app_install_events').insert([
+        {
+          source, // ex: 'home_modal', 'home_header_button'
+        },
+      ]);
+    } catch (error) {
+      console.error('Erreur tracking clic installation Grega Play :', error);
+    }
+  };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const isStandalone =
+      window.matchMedia?.('(display-mode: standalone)').matches ||
+      window.navigator.standalone === true;
+
+    // Si déjà installée en mode standalone → pas de popup
+    if (isStandalone) {
+      return;
+    }
+
+    // Détection "mobile" (user agent + largeur écran)
+    const ua = window.navigator.userAgent || '';
+    const isMobile =
+      /Android|webOS|iPhone|iPad|iPod|Opera Mini|IEMobile/i.test(ua) ||
+      window.innerWidth <= 768;
+
+    // On ne montre le popup que sur mobile
+    if (!isMobile) {
+      return;
+    }
+
+    // Si l'utilisateur a déjà cliqué sur "Plus tard" → on ne repropose pas le popup
+    const hasDismissed =
+      window.localStorage?.getItem('gp_install_prompt_dismissed') === '1';
+    if (hasDismissed) {
+      return;
+    }
+
+    const handleBeforeInstallPrompt = (e) => {
+      // Empêche le prompt natif
+      e.preventDefault();
+      setDeferredPrompt(e);
+
+      // On laisse la page se charger un peu avant de montrer le popup
+      setTimeout(() => {
+        setShowInstallModal(true);
+      }, 1200);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallClick = async (source = 'home_modal') => {
+    // Tracking du clic sur le bouton "Installer"
+    await trackInstallClick(source);
+
+    if (!deferredPrompt) {
+      // Pas de prompt disponible (par exemple sur iOS Safari)
+      return;
+    }
+
+    deferredPrompt.prompt();
+    const choiceResult = await deferredPrompt.userChoice;
+
+    // Dans tous les cas, on ferme le popup et on évite de spammer
+    try {
+      window.localStorage?.setItem('gp_install_prompt_dismissed', '1');
+    } catch (e) {
+      // silencieux
+    }
+
+    setDeferredPrompt(null);
+    setShowInstallModal(false);
+
+    console.log('PWA install outcome:', choiceResult?.outcome);
+  };
+
+  const handleCloseInstallModal = () => {
+    try {
+      window.localStorage?.setItem('gp_install_prompt_dismissed', '1');
+    } catch (e) {
+      // silencieux
+    }
+    setShowInstallModal(false);
+  };
+
   return (
     <MainLayout>
       <div className="min-h-[calc(100vh-80px)] bg-gray-50">
@@ -19,6 +119,22 @@ const HomePage = () => {
 
           {/* HERO façon : bandeau clair + carte à droite */}
           <section className="bg-gradient-to-br from-emerald-50 via-white to-gray-50 border border-emerald-100 rounded-3xl px-5 sm:px-8 py-8 shadow-sm">
+            {/* Petit bouton permanent en "header" de la section
+                → visible si on a reçu un beforeinstallprompt,
+                   mais que le popup n'est pas en train d'être affiché */}
+            <div className="flex justify-end mb-3">
+              {deferredPrompt && !showInstallModal && (
+                <button
+                  type="button"
+                  onClick={() => handleInstallClick('home_header_button')}
+                  className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-white/80 px-3 py-1 text-[11px] font-medium text-emerald-700 hover:bg-emerald-50"
+                >
+                  <span className="text-xs">📱</span>
+                  <span>Installer Grega Play</span>
+                </button>
+              )}
+            </div>
+
             <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-8">
 
               {/* Texte gauche */}
@@ -71,7 +187,7 @@ const HomePage = () => {
               <div className="md:w-1/2">
                 <div className="bg-white rounded-3xl shadow-md border border-emerald-100 px-5 py-5 sm:px-6 sm:py-6 max-w-md ml-auto">
                   <div className="flex items-start justify-between gap-3">
-                    <div>                      
+                    <div>
                       <h2 className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
                         Anniversaire de Mamouna ❤️🥳
                       </h2>
@@ -95,10 +211,6 @@ const HomePage = () => {
                         e.currentTarget.style.display = 'none';
                       }}
                     />
-                    {/* fallback simple si pas d’image *
-                    <div className="w-full h-40 flex flex-col items-center justify-center text-center text-[11px] text-gray-500">
-                      <p>Ajoute ici une capture d’écran de ton dashboard Grega Play.</p>
-                    </div>*/}
                   </div>
 
                   {/* Progression, façon */}
@@ -144,9 +256,6 @@ const HomePage = () => {
           <section>
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 sm:px-6 py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                {/*<div className="h-8 w-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                  🎉
-                </div>*/}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
                     Pensé pour les moments importants
@@ -158,9 +267,6 @@ const HomePage = () => {
               </div>
 
               <div className="flex items-center gap-3">
-               {/*<div className="h-8 w-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600">
-                  🤝
-                </div>*/}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
                     100% collaboratif
@@ -172,9 +278,6 @@ const HomePage = () => {
               </div>
 
               <div className="flex items-center gap-3">
-                {/*<div className="h-8 w-8 rounded-full bg-pink-100 flex items-center justify-center text-pink-600">
-                  📱
-                </div>*/}
                 <div>
                   <p className="text-sm font-semibold text-gray-900">
                     Format vertical prêt à partager
@@ -360,6 +463,67 @@ const HomePage = () => {
           </section>
         </div>
       </div>
+
+      {/* POPUP INSTALL APP (uniquement mobile, voir useEffect) */}
+      {showInstallModal && deferredPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
+          <div className="relative bg-white rounded-3xl shadow-2xl border border-emerald-100 max-w-sm w-full p-5">
+            <button
+              type="button"
+              onClick={handleCloseInstallModal}
+              className="absolute top-3 right-3 inline-flex items-center justify-center h-7 w-7 rounded-full bg-gray-100 text-gray-500 hover:bg-gray-200 text-xs"
+              aria-label="Fermer"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-3 mb-3">
+              <div className="h-10 w-10 rounded-2xl bg-emerald-100 flex items-center justify-center text-emerald-600 text-xl">
+                📱
+              </div>
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-600">
+                  Grega Play sur ton écran d’accueil
+                </p>
+                <h2 className="text-base sm:text-lg font-bold text-gray-900">
+                  Installe l’app pour un accès plus rapide
+                </h2>
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-600 mb-3">
+              Ajoute Grega Play à ton écran d’accueil pour créer et suivre tes évènements
+              comme une vraie application, en plein écran.
+            </p>
+
+            <ul className="text-[11px] text-gray-600 space-y-1.5 mb-4 list-disc list-inside">
+              <li>Accès direct depuis ton écran d’accueil</li>
+              <li>Expérience plein écran, sans barre d’adresse</li>
+              <li>Idéal pour enregistrer et regarder les vidéos</li>
+            </ul>
+
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+              <Button
+                onClick={() => handleInstallClick('home_modal')}
+                className="w-full py-2 text-sm font-semibold"
+              >
+                Installer Grega Play
+              </Button>
+              <button
+                type="button"
+                onClick={handleCloseInstallModal}
+                className="w-full py-2 text-sm font-semibold rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50"
+              >
+                Plus tard
+              </button>
+            </div>
+
+            <p className="mt-2 text-[10px] text-gray-400">
+              Tu pourras toujours installer Grega Play depuis ton navigateur si tu changes d’avis.
+            </p>
+          </div>
+        </div>
+      )}
     </MainLayout>
   );
 };

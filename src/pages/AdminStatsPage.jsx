@@ -8,22 +8,48 @@ const ADMIN_EMAIL = 'edhemrombhot@gmail.com';
 
 export default function AdminStatsPage() {
   const [isAdmin, setIsAdmin] = useState(null);
+  const [installStats, setInstallStats] = useState({ totalClicks: 0 });
 
-  useEffect(() => {
-    async function checkAdmin() {
-      const { data, error } = await supabase.auth.getUser();
+  async function checkAdmin() {
+    const { data, error } = await supabase.auth.getUser();
 
-      if (error || !data?.user) {
-        setIsAdmin(false);
+    if (error || !data?.user) {
+      setIsAdmin(false);
+      return;
+    }
+
+    const userEmail = data.user.email?.toLowerCase();
+    setIsAdmin(userEmail === ADMIN_EMAIL.toLowerCase());
+  }
+
+  async function fetchInstallStats() {
+    try {
+      const { count, error } = await supabase
+        .from('app_install_events')
+        .select('*', { count: 'exact', head: true });
+
+      if (error) {
+        console.error('Erreur chargement stats installation:', error);
         return;
       }
 
-      const userEmail = data.user.email?.toLowerCase();
-      setIsAdmin(userEmail === ADMIN_EMAIL.toLowerCase());
+      setInstallStats({
+        totalClicks: count || 0,
+      });
+    } catch (err) {
+      console.error('Erreur inattendue stats installation:', err);
     }
+  }
 
+  useEffect(() => {
     checkAdmin();
   }, []);
+
+  useEffect(() => {
+    if (isAdmin === true) {
+      fetchInstallStats();
+    }
+  }, [isAdmin]);
 
   if (isAdmin === null) {
     return (
@@ -111,6 +137,23 @@ export default function AdminStatsPage() {
             <h2 className="text-sm font-semibold text-gray-700 mb-2">
               Indicateurs clés (version 1)
             </h2>
+
+            {/* Bloc stats installation PWA */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+              <div className="rounded-3xl border border-emerald-100 bg-white shadow-sm p-4">
+                <p className="text-xs text-gray-500">
+                  Clics sur “Installer Grega Play”
+                </p>
+                <p className="mt-1 text-2xl font-bold text-gray-900">
+                  {installStats.totalClicks}
+                </p>
+                <p className="mt-1 text-[11px] text-gray-500">
+                  Nombre total de clics sur les boutons d’installation (Home, header,
+                  etc.). C’est un premier indicateur d’intérêt pour le mode “app”.
+                </p>
+              </div>
+            </div>
+
             <AdminDashboardStats />
           </section>
         </div>
