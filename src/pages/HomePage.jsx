@@ -187,7 +187,7 @@ const HomePage = () => {
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h2 className="text-sm sm:text-base font-semibold text-gray-900">
-                        Grega Play en mois d'1 minute
+                        Grega Play en moins d'1 minute
                       </h2>
                       <p className="mt-1 text-[11px] text-gray-500">
                         Une courte vidéo pour comprendre le fonctionnement.
