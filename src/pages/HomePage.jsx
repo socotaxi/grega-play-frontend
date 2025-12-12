@@ -117,11 +117,9 @@ const HomePage = () => {
       <div className="min-h-[calc(100vh-80px)] bg-gray-50">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
 
-          {/* HERO façon : bandeau clair + carte à droite */}
+          {/* HERO façon : bandeau clair + vidéo YouTube à droite */}
           <section className="bg-gradient-to-br from-emerald-50 via-white to-gray-50 border border-emerald-100 rounded-3xl px-5 sm:px-8 py-8 shadow-sm">
-            {/* Petit bouton permanent en "header" de la section
-                → visible si on a reçu un beforeinstallprompt,
-                   mais que le popup n'est pas en train d'être affiché */}
+            {/* Petit bouton permanent en "header" de la section */}
             <div className="flex justify-end mb-3">
               {deferredPrompt && !showInstallModal && (
                 <button
@@ -183,69 +181,30 @@ const HomePage = () => {
                 </p>
               </div>
 
-              {/* Carte “exemple d’événement” à droite, façon */}
+              {/* Vidéo YouTube à droite */}
               <div className="md:w-1/2">
                 <div className="bg-white rounded-3xl shadow-md border border-emerald-100 px-5 py-5 sm:px-6 sm:py-6 max-w-md ml-auto">
-                  <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
-                      <h2 className="text-sm sm:text-base font-semibold text-gray-900 mt-1">
-                        Anniversaire de Mamouna ❤️🥳
+                      <h2 className="text-sm sm:text-base font-semibold text-gray-900">
+                        Grega Play en mois d'1 minute
                       </h2>
                       <p className="mt-1 text-[11px] text-gray-500">
-                        Famille & amis envoient chacun une courte vidéo.
+                        Une courte vidéo pour comprendre le fonctionnement.
                       </p>
                     </div>
-                    {/* mini badge */}
-                    <div className="rounded-full bg-emerald-50 px-3 py-1 text-[10px] font-semibold text-emerald-700">
-                      12 vidéos reçues
-                    </div>
                   </div>
 
-                  {/* Image / mockup */}
-                  <div className="mt-4 rounded-2xl overflow-hidden border border-gray-100 bg-gray-100">
-                    <img
-                      src="/images/home-hero.jpg"
-                      alt="Aperçu de l’événement Grega Play"
-                      className="w-full h-40 object-cover"
-                      onError={(e) => {
-                        e.currentTarget.style.display = 'none';
-                      }}
+                  {/* Wrapper responsive 16:9 */}
+                  <div className="mt-2 relative w-full" style={{ paddingTop: '56.25%' }}>
+                    <iframe
+                      src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO"
+                      title="Présentation de Grega Play"
+                      className="absolute top-0 left-0 w-full h-full rounded-2xl"
+                      frameBorder="0"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
                     />
-                  </div>
-
-                  {/* Progression, façon */}
-                  <div className="mt-4">
-                    <div className="flex items-center justify-between text-[11px] text-gray-600 mb-1">
-                      <span>Vidéos reçues</span>
-                      <span>12 / 20</span>
-                    </div>
-                    <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-                      <div className="h-full w-3/5 rounded-full bg-emerald-500" />
-                    </div>
-                    <p className="mt-1 text-[11px] text-gray-500">
-                      Date limite : 28 novembre • Montage final prévu le 30.
-                    </p>
-                  </div>
-
-                  {/* Mini avatars / collaboration */}
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="flex -space-x-2">
-                      <div className="h-7 w-7 rounded-full bg-emerald-100 border border-white flex items-center justify-center text-[11px] text-emerald-700 font-semibold">
-                        A
-                      </div>
-                      <div className="h-7 w-7 rounded-full bg-indigo-100 border border-white flex items-center justify-center text-[11px] text-indigo-700 font-semibold">
-                        M
-                      </div>
-                      <div className="h-7 w-7 rounded-full bg-pink-100 border border-white flex items-center justify-center text-[11px] text-pink-700 font-semibold">
-                        T
-                      </div>
-                      <div className="h-7 w-7 rounded-full bg-gray-100 border border-white flex items-center justify-center text-[10px] text-gray-600">
-                        +9
-                      </div>
-                    </div>
-                    <p className="text-[11px] text-gray-500">
-                      12 personnes participent à la surprise.
-                    </p>
                   </div>
                 </div>
               </div>
@@ -290,7 +249,7 @@ const HomePage = () => {
             </div>
           </section>
 
-          {/* USE CASES avec images (déjà visuel) */}
+          {/* USE CASES avec images (cliquables) */}
           <section>
             <h2 className="text-sm font-semibold text-gray-900 mb-3">
               Pour quels moments utiliser Grega Play ?
@@ -301,12 +260,15 @@ const HomePage = () => {
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
               {/* Anniversaire */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-                <div className="h-32 sm:h-40 bg-gray-100">
+              <Link
+                to={primaryCtaLink}
+                className="group bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md hover:border-emerald-400 transition-all duration-150"
+              >
+                <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
                   <img
                     src="/images/home-birthday.jpg"
                     alt="Montage vidéo pour un anniversaire"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
@@ -320,16 +282,22 @@ const HomePage = () => {
                     Demande à chaque proche d’envoyer une courte vidéo “joyeux anniversaire”.
                     Grega Play assemble tout en une seule vidéo émouvante.
                   </p>
+                  <span className="mt-3 text-[11px] font-medium text-emerald-600 group-hover:underline">
+                    Créer un événement anniversaire →
+                  </span>
                 </div>
-              </div>
+              </Link>
 
               {/* Mariage / famille */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-                <div className="h-32 sm:h-40 bg-gray-100">
+              <Link
+                to={primaryCtaLink}
+                className="group bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md hover:border-emerald-400 transition-all duration-150"
+              >
+                <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
                   <img
                     src="/images/home-wedding.jpg"
                     alt="Montage vidéo pour un mariage ou un événement familial"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
@@ -343,16 +311,22 @@ const HomePage = () => {
                     Messages de la famille, des amis proches ou de la diaspora qui
                     ne peut pas se déplacer, réunis en un souvenir commun.
                   </p>
+                  <span className="mt-3 text-[11px] font-medium text-emerald-600 group-hover:underline">
+                    Créer un événement mariage →
+                  </span>
                 </div>
-              </div>
+              </Link>
 
               {/* Équipe / entreprise */}
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md transition-shadow">
-                <div className="h-32 sm:h-40 bg-gray-100">
+              <Link
+                to={primaryCtaLink}
+                className="group bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md hover:border-emerald-400 transition-all duration-150"
+              >
+                <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
                   <img
                     src="/images/home-team.jpg"
                     alt="Montage vidéo pour une équipe ou une entreprise"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
                     onError={(e) => {
                       e.currentTarget.style.display = 'none';
                     }}
@@ -366,8 +340,11 @@ const HomePage = () => {
                     Départ d’un collègue, best-of de l’année, message collectif :
                     un format simple pour renforcer la cohésion.
                   </p>
+                  <span className="mt-3 text-[11px] font-medium text-emerald-600 group-hover:underline">
+                    Créer un événement d’équipe →
+                  </span>
                 </div>
-              </div>
+              </Link>
             </div>
           </section>
 
@@ -467,7 +444,7 @@ const HomePage = () => {
       {/* POPUP INSTALL APP (uniquement mobile, voir useEffect) */}
       {showInstallModal && deferredPrompt && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 px-4">
-          <div className="relative bg-white rounded-3xl shadow-2xl border border-emerald-100 max-w-sm w-full p-5">
+          <div className="relative bg-white rounded-3xl shadow-2xl border-emerald-100 max-w-sm w-full p-5">
             <button
               type="button"
               onClick={handleCloseInstallModal}
@@ -490,7 +467,7 @@ const HomePage = () => {
                 </h2>
               </div>
             </div>
-           <div className="flex flex-col sm:flex-row gap-2 mt-2">
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
               <Button
                 onClick={() => handleInstallClick('home_modal')}
                 className="w-full py-2 text-sm font-semibold"
