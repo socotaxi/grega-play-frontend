@@ -1,10 +1,17 @@
-import React, { useState } from "react";
+// src/components/layout/MainLayout.jsx
+import React, { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 const MainLayout = ({ children }) => {
   const [menuOpen, setMenuOpen] = useState(false);
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
+
+  // Compte Premium si le profil a is_premium_account ou is_premium à true
+  const isPremiumAccount = useMemo(() => {
+    if (!profile) return false;
+    return profile.is_premium_account === true || profile.is_premium === true;
+  }, [profile]);
 
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
@@ -49,9 +56,20 @@ const MainLayout = ({ children }) => {
                 <Link
                   to="/profile"
                   className="text-gray-600 hover:text-emerald-600 transition"
-                >
+                  >
                   Profil
                 </Link>
+
+                {/* Bouton Upgrade visible uniquement si le compte n'est PAS Premium */}
+                {!isPremiumAccount && (
+                  <Link
+                    to="/premium"
+                    className="px-4 py-2 rounded-lg bg-purple-600 text-white font-semibold hover:bg-purple-700 transition"
+                  >
+                    Upgrade Premium
+                  </Link>
+                )}
+
                 <Link
                   to="/create-event"
                   className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition"
@@ -112,7 +130,7 @@ const MainLayout = ({ children }) => {
             {user ? (
               <>
                 <div className="py-2 text-sm text-gray-600">
-                  👤 {user.user_metadata?.first_name || user.email}
+                  👤 {profile?.full_name || user.user_metadata?.first_name || user.email}
                 </div>
                 <Link
                   to="/profile"
@@ -121,6 +139,18 @@ const MainLayout = ({ children }) => {
                 >
                   Profil
                 </Link>
+
+                {/* Upgrade Premium mobile : seulement si pas Premium */}
+                {!isPremiumAccount && (
+                  <Link
+                    to="/premium"
+                    className="block mt-1 py-2 text-sm font-semibold text-white text-center rounded-lg bg-purple-600 hover:bg-purple-700"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Upgrade Premium
+                  </Link>
+                )}
+
                 <Link
                   to="/create-event"
                   className="block mt-1 py-2 text-sm font-semibold text-white text-center rounded-lg bg-emerald-600 hover:bg-emerald-700"
@@ -152,9 +182,7 @@ const MainLayout = ({ children }) => {
       )}
 
       {/* CONTENU PRINCIPAL */}
-      <main className="flex-1">
-        {children}
-      </main>
+      <main className="flex-1">{children}</main>
     </div>
   );
 };

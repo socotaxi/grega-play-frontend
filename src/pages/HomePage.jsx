@@ -145,7 +145,7 @@ const HomePage = () => {
                 </div>
 
                 <h1 className="text-3xl sm:text-4xl font-bold text-gray-900 leading-tight">
-                  Créez des moments vidéo collaboratifs
+                  Créez des moments vidéo inoubliables✨
                   <span className="block text-emerald-600 mt-1">
                     avec vos amis et votre famille.
                   </span>
@@ -187,7 +187,7 @@ const HomePage = () => {
                   <div className="flex items-center justify-between gap-3 mb-3">
                     <div>
                       <h2 className="text-sm sm:text-base font-semibold text-gray-900">
-                        Grega Play en moins d'1 minute
+                        Grega Play en moins d'1 minute🕐
                       </h2>
                       <p className="mt-1 text-[11px] text-gray-500">
                         Une courte vidéo pour comprendre le fonctionnement.

@@ -2,7 +2,6 @@ import React from "react";
 import { BrowserRouter } from "react-router-dom";
 import { Routes, Route } from "react-router-dom";
 import { ToastContainer } from "react-toastify";
-import VerifyPhonePage from "./pages/VerifyPhonePage";
 import "react-toastify/dist/ReactToastify.css";
 
 // Pages
@@ -23,8 +22,17 @@ import ForgotPasswordPage from "./pages/ForgotPasswordPage";
 import ResetPasswordPage from "./pages/ResetPasswordPage";
 import PublicEventPage from "./pages/PublicEventPage";
 import AdminStatsPage from "./pages/AdminStatsPage";
-// 🔹 NOUVEL AJOUT : page publique de lecture de la vidéo finale
+import VerifyPhonePage from "./pages/VerifyPhonePage";
+// page publique de lecture de la vidéo finale
 import PublicFinalVideoPage from "./pages/PublicFinalVideoPage";
+// page Premium
+import PremiumPage from "./pages/PremiumPage";
+// ✅ NOUVEL AJOUT : page tunnel de paiement Premium
+import CheckoutPremiumPage from "./pages/CheckoutPremiumPage";
+
+// ✅ NOUVEAU : pages légales
+import CguPage from "./pages/CguPage";
+import ConfidentialitePage from "./pages/ConfidentialitePage";
 
 const App = () => {
   return (
@@ -50,17 +58,28 @@ const App = () => {
         <Route path="/invitation/:token" element={<InvitationPage />} />
         <Route path="/check-email" element={<CheckEmailPage />} />
         <Route path="/events/:eventId" element={<EventDetailsPage />} />
+        <Route path="/events/:eventId/submit" element={<SubmitVideoPage />} />
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/e/:publicCode" element={<PublicEventPage />} />
-        {/* 🔹 NOUVEL AJOUT : route publique player */}
+        {/* player public */}
         <Route path="/player/:publicCode" element={<PublicFinalVideoPage />} />
-        {/* ⚠️ Route page admin */}
+        {/* page admin */}
         <Route path="/admin/stats" element={<AdminStatsPage />} />
         <Route path="/verify-phone" element={<VerifyPhonePage />} />
+        {/* page Premium */}
+        <Route path="/premium" element={<PremiumPage />} />
+        {/* ✅ NOUVELLE ROUTE : tunnel de paiement Premium */}
+        <Route path="/checkout-premium" element={<CheckoutPremiumPage />} />
+
+        {/* ✅ NOUVELLES ROUTES : CGU + Politique de confidentialité */}
+        <Route path="/cgu" element={<CguPage />} />
+        <Route path="/confidentialite" element={<ConfidentialitePage />} />
       </Routes>
     </>
   );
 };
+
+console.log("Stripe key:", import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY);
 
 export default App;

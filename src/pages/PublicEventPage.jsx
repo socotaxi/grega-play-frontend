@@ -1,11 +1,45 @@
 // src/pages/PublicEventPage.jsx
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import MainLayout from "../components/layout/MainLayout";
 import Loading from "../components/ui/Loading";
 import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import supabase from "../lib/supabaseClient";
+import { setReturnTo } from "../utils/returnTo";
+
+const VISITED_KEY = "gp_visited_events_v1";
+
+const safeParseJson = (raw, fallback) => {
+  try {
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const upsertVisitedEvent = (visitedItem) => {
+  try {
+    const arr = safeParseJson(localStorage.getItem(VISITED_KEY), []);
+    const list = Array.isArray(arr) ? arr : [];
+
+    const key = visitedItem.event_id
+      ? `id:${visitedItem.event_id}`
+      : `code:${visitedItem.public_code}`;
+
+    const next = [
+      visitedItem,
+      ...list.filter((x) => {
+        const k = x?.event_id ? `id:${x.event_id}` : `code:${x?.public_code}`;
+        return k !== key;
+      }),
+    ].slice(0, 20);
+
+    localStorage.setItem(VISITED_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+};
 
 const PublicEventPage = () => {
   const { publicCode } = useParams();
@@ -40,6 +74,13 @@ const PublicEventPage = () => {
     : false;
 
   const isPublicEvent = event?.is_public === true;
+  const isPremiumEvent = event?.is_premium_event === true;
+
+  const currentReturnUrl = useMemo(() => {
+    return (
+      window.location.pathname + window.location.search + window.location.hash
+    );
+  }, []);
 
   useEffect(() => {
     const fetchEvent = async () => {
@@ -47,10 +88,9 @@ const PublicEventPage = () => {
       setError(null);
 
       try {
-        const { data, error } = await supabase.rpc(
-          "get_event_by_public_code",
-          { p_code: publicCode }
-        );
+        const { data, error } = await supabase.rpc("get_event_by_public_code", {
+          p_code: publicCode,
+        });
 
         if (error) {
           console.error("Erreur RPC:", error);
@@ -76,6 +116,27 @@ const PublicEventPage = () => {
     }
   }, [publicCode]);
 
+  // ✅ NEW : enregistrer "événement visité" (sans rejoindre) dès que l'event est chargé
+  useEffect(() => {
+    if (!event) return;
+
+    upsertVisitedEvent({
+      event_id: event.id || null,
+      public_code: publicCode || null,
+      title: event.title || "Événement",
+      theme: event.theme || "",
+      cover_url: event.media_url || null,
+      visited_at: new Date().toISOString(),
+    });
+  }, [event, publicCode]);
+
+  // ✅ NEW : stocker returnTo pour garantir le retour après login/register
+  useEffect(() => {
+    if (!publicCode) return;
+    // on mémorise toujours la page publique comme point de retour
+    setReturnTo(currentReturnUrl);
+  }, [publicCode, currentReturnUrl]);
+
   // 🔒 Vérifier côté PublicEventPage si l'utilisateur connecté est bien invité
   useEffect(() => {
     const checkInvitation = async () => {
@@ -98,14 +159,20 @@ const PublicEventPage = () => {
           .eq("email", user.email);
 
         if (error) {
-          console.error("Erreur vérification invitation (PublicEventPage):", error);
+          console.error(
+            "Erreur vérification invitation (PublicEventPage):",
+            error
+          );
           setIsInvited(null);
           return;
         }
 
         setIsInvited(data && data.length > 0);
       } catch (err) {
-        console.error("Erreur inattendue vérification invitation (PublicEventPage):", err);
+        console.error(
+          "Erreur inattendue vérification invitation (PublicEventPage):",
+          err
+        );
         setIsInvited(null);
       }
     };
@@ -117,26 +184,30 @@ const PublicEventPage = () => {
     }
   }, [user, event]);
 
+  const goLogin = useCallback(() => {
+    // returnTo déjà posé, mais on le met aussi en query param (robuste)
+    navigate(`/login?returnTo=${encodeURIComponent(currentReturnUrl)}`);
+  }, [navigate, currentReturnUrl]);
+
+  const goRegister = useCallback(() => {
+    navigate(`/register?returnTo=${encodeURIComponent(currentReturnUrl)}`);
+  }, [navigate, currentReturnUrl]);
+
   const handleParticipate = () => {
-    // Si participation fermée, on ne fait rien
-    if (isParticipationClosed) {
-      return;
-    }
+    if (isParticipationClosed) return;
 
-    // Si pas connecté → login
+    // Si pas connecté → login + returnTo
     if (!user) {
-      navigate("/login");
+      goLogin();
       return;
     }
 
-    // Si l'événement n'est pas public et que l'utilisateur n'est pas invité explicitement,
-    // on ne redirige pas vers la page de l'événement.
+    // Si l'événement n'est pas public et que l'utilisateur n'est pas invité explicitement
     if (!isPublicEvent && isInvited === false) {
       return;
     }
 
     if (event?.id) {
-      // Redirection vers la page d’événement (où se fera l’upload)
       navigate(`/events/${event.id}`);
     } else {
       navigate("/dashboard");
@@ -177,7 +248,6 @@ const PublicEventPage = () => {
   const isDone = event.status === "done";
   const isCanceled = event.status === "canceled";
 
-  // Fonction utilitaire pour afficher le média
   const renderMedia = (url) => {
     if (!url) return null;
 
@@ -185,22 +255,12 @@ const PublicEventPage = () => {
 
     if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
       return (
-        <video
-          src={url}
-          controls
-          className="w-full rounded-lg border mt-4"
-        />
+        <video src={url} controls className="w-full rounded-lg border mt-4" />
       );
     }
 
     if (lower.match(/\.(mp3|wav|ogg)$/i)) {
-      return (
-        <audio
-          src={url}
-          controls
-          className="w-full mt-4"
-        />
-      );
+      return <audio src={url} controls className="w-full mt-4" />;
     }
 
     return (
@@ -215,7 +275,6 @@ const PublicEventPage = () => {
   return (
     <MainLayout>
       <div className="py-6 max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-        {/* Message global sur l'état de l'évènement */}
         {(expired || isDone || isCanceled) && (
           <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
             {isDone && (
@@ -237,16 +296,37 @@ const PublicEventPage = () => {
           </div>
         )}
 
-        {/* Infos événement */}
         <div className="bg-white shadow rounded-lg p-6">
-          <h1 className="text-2xl font-bold text-gray-900">{event.title}</h1>
+          <div className="flex flex-col gap-2">
+            <h1 className="text-2xl font-bold text-gray-900">{event.title}</h1>
+
+            <div className="flex flex-wrap items-center gap-2">
+              {event.theme && (
+                <p className="text-xs inline-flex px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">
+                  Thème : {event.theme}
+                </p>
+              )}
+
+              {isPremiumEvent && (
+                <span className="text-xs inline-flex px-2 py-1 rounded-full bg-purple-50 text-purple-800 border border-purple-100">
+                  Événement Premium (offert)
+                </span>
+              )}
+
+              {isPublicEvent ? (
+                <span className="text-[11px] inline-flex px-2 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-100">
+                  Accès avec le lien
+                </span>
+              ) : (
+                <span className="text-[11px] inline-flex px-2 py-1 rounded-full bg-gray-50 text-gray-700 border border-gray-200">
+                  Participation sur invitation
+                </span>
+              )}
+            </div>
+          </div>
+
           {event.description && (
             <p className="text-sm text-gray-600 mt-2">{event.description}</p>
-          )}
-          {event.theme && (
-            <p className="mt-2 text-xs inline-flex px-2 py-1 rounded-full bg-indigo-50 text-indigo-700">
-              Thème : {event.theme}
-            </p>
           )}
 
           {event.deadline && (
@@ -260,26 +340,41 @@ const PublicEventPage = () => {
             </p>
           )}
 
-          {/* ✅ Nouveau : affichage du média d'illustration si présent */}
           {event.media_url && renderMedia(event.media_url)}
         </div>
 
-        {/* Bloc participation */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 space-y-3">
-          {/* 1. Non connecté, participation ouverte */}
+          {isPremiumEvent && (
+            <div className="mb-2 rounded-md bg-purple-50 border border-purple-100 px-3 py-2">
+              <p className="text-[11px] text-purple-800">
+                Cet événement utilise Grega Play Premium pendant la phase de
+                lancement. Pour toi, en tant qu’invité, cela ne change rien au
+                niveau du paiement : tu peux participer gratuitement, comme pour
+                un événement classique.
+              </p>
+            </div>
+          )}
+
           {!user && !isParticipationClosed && (
             <>
               <p className="text-sm text-gray-700">
                 Pour participer à cet événement (envoyer une vidéo), vous devez
                 d’abord vous connecter à Grega Play.
               </p>
-              <Button onClick={handleParticipate} className="w-full">
-                Se connecter pour participer
-              </Button>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Button onClick={goLogin} className="w-full">
+                  Se connecter pour participer
+                </Button>
+                <Button
+                  onClick={goRegister}
+                  className="w-full bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                >
+                  S’inscrire
+                </Button>
+              </div>
             </>
           )}
 
-          {/* 2. Non connecté, participation fermée */}
           {!user && isParticipationClosed && (
             <>
               <p className="text-sm text-gray-700">
@@ -289,39 +384,45 @@ const PublicEventPage = () => {
             </>
           )}
 
-          {/* 3. Connecté, participation ouverte, mais NON invité → message spécifique (uniquement pour événement privé) */}
-          {user && !isParticipationClosed && !isPublicEvent && isInvited === false && (
-            <>
-              <p className="text-sm text-gray-700">
-                Vous êtes connecté en tant que{" "}
-                <span className="font-semibold">{user.email}</span>.
-              </p>
-              <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
-                Vous ne faites pas partie des invités de cet événement.
-                Vous pouvez consulter les informations ci-dessus,
-                mais vous ne pourrez pas envoyer de vidéo pour cet événement.
-              </p>
-            </>
-          )}
+          {user &&
+            !isParticipationClosed &&
+            !isPublicEvent &&
+            isInvited === false && (
+              <>
+                <p className="text-sm text-gray-700">
+                  Vous êtes connecté en tant que{" "}
+                  <span className="font-semibold">{user.email}</span>.
+                </p>
+                <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                  Vous ne faites pas partie des invités de cet événement. Vous
+                  pouvez consulter les informations ci-dessus, mais vous ne
+                  pourrez pas envoyer de vidéo pour cet événement.
+                </p>
+              </>
+            )}
 
-          {/* 4. Connecté, participation ouverte, invité (ou check en cours) ou événement public */}
-          {user && !isParticipationClosed && (isPublicEvent || isInvited === true || isInvited === null) && (
-            <>
-              <p className="text-sm text-gray-700">
-                Vous êtes connecté en tant que{" "}
-                <span className="font-semibold">{user.email}</span>.
-              </p>
-              <p className="text-sm text-gray-600">
-                Cliquez sur le bouton ci-dessous pour accéder à la page de
-                l’événement dans l’application et envoyer votre vidéo.
-              </p>
-              <Button onClick={handleParticipate} className="w-full" disabled={!isPublicEvent && isInvited === null}>
-                Participer à la vidéo
-              </Button>
-            </>
-          )}
+          {user &&
+            !isParticipationClosed &&
+            (isPublicEvent || isInvited === true || isInvited === null) && (
+              <>
+                <p className="text-sm text-gray-700">
+                  Vous êtes connecté en tant que{" "}
+                  <span className="font-semibold">{user.email}</span>.
+                </p>
+                <p className="text-sm text-gray-600">
+                  Cliquez sur le bouton ci-dessous pour accéder à la page de
+                  l’événement dans l’application et envoyer votre vidéo.
+                </p>
+                <Button
+                  onClick={handleParticipate}
+                  className="w-full"
+                  disabled={!isPublicEvent && isInvited === null}
+                >
+                  Participer à la vidéo
+                </Button>
+              </>
+            )}
 
-          {/* 5. Connecté, participation fermée (peu importe l’invitation) */}
           {user && isParticipationClosed && (
             <>
               <p className="text-sm text-gray-700">
@@ -336,7 +437,6 @@ const PublicEventPage = () => {
           )}
         </div>
 
-        {/* Lien vers le dashboard */}
         <div className="bg-white border border-gray-100 rounded-lg p-4 text-center text-sm text-gray-600">
           <p>
             Retrouve tous tes projets dans ton{" "}

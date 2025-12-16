@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
-import supabase from '../../lib/supabaseClient';
-import { AnimatePresence, motion } from 'framer-motion';
-import AdminMenuLink from './AdminMenuLink';
+// src/components/layout/MainLayout.jsx
+import React, { useEffect, useState, useMemo } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../../context/AuthContext";
+import supabase from "../../lib/supabaseClient";
+import { AnimatePresence, motion } from "framer-motion";
+import AdminMenuLink from "./AdminMenuLink";
 
 const MainLayout = ({ children }) => {
   const [menuOpen, setMenuOpen] = useState(false);
@@ -11,36 +12,53 @@ const MainLayout = ({ children }) => {
   const [profile, setProfile] = useState(null);
   const navigate = useNavigate();
 
-  // Chargement profil utilisateur
+  // Chargement du profil utilisateur (pour full_name, avatar et flags premium)
   useEffect(() => {
     const fetchProfile = async () => {
-      if (user) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('full_name, avatar_url')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (error) {
-          console.error('Erreur chargement profil :', error.message);
-        } else if (!data) {
-          console.warn('Aucun profil trouvé, redirection…');
-          navigate('/');
-        } else {
-          setProfile(data);
-        }
+      if (!user) {
+        setProfile(null);
+        return;
       }
+
+      const { data, error } = await supabase
+        .from("profiles")
+        .select(
+          "full_name, avatar_url, is_premium_account, premium_account_expires_at, is_premium"
+        )
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Erreur chargement profil :", error.message);
+        return;
+      }
+
+      if (!data) {
+        console.warn("Aucun profil trouvé, redirection…");
+        navigate("/");
+        return;
+      }
+
+      setProfile(data);
     };
 
     fetchProfile();
   }, [user, navigate]);
 
+  // Compte Premium = dès qu'un des deux champs est truthy
+  const isPremiumAccount = useMemo(() => {
+    if (!profile) return false;
+    return Boolean(profile.is_premium_account || profile.is_premium);
+  }, [profile]);
+
+  const displayName =
+    profile?.full_name || user?.user_metadata?.full_name || user?.email || "";
+
   return (
     <div className="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
-      {/* HEADER PREMIUM */}
+      {/* HEADER */}
       <header className="sticky top-0 z-40 bg-white/80 backdrop-blur border-b border-gray-200">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
-          
           {/* LOGO + BASELINE */}
           <Link to="/" className="flex items-center gap-3">
             <img
@@ -58,61 +76,67 @@ const MainLayout = ({ children }) => {
             </div>
           </Link>
 
-          {/* MENU DESKTOP */}
+          {/* NAV DESKTOP */}
           <nav className="hidden lg:flex items-center gap-6 text-sm font-medium">
             {!user && (
-              <Link to="/" className="text-gray-600 hover:text-emerald-600 transition">
+              <Link
+                to="/"
+                className="text-gray-600 hover:text-emerald-600 transition"
+              >
                 Accueil
               </Link>
             )}
 
             {user && (
-              <Link to="/dashboard" className="text-gray-600 hover:text-emerald-600 transition">
+              <Link
+                to="/dashboard"
+                className="text-gray-600 hover:text-emerald-600 transition"
+              >
                 Dashboard
               </Link>
             )}
 
-            <Link to="/contact" className="text-gray-600 hover:text-emerald-600 transition">
-              Contact
-            </Link>
-
             {/* MENU ADMIN (desktop) */}
             <AdminMenuLink />
 
-            {/* Profil avec avatar */}
+            {/* Profil + badge Premium */}
             {user ? (
-              <Link
-                to="/profile"
-                className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 transition"
-              >
-                {profile?.avatar_url ? (
-                  <img
-                    src={profile.avatar_url}
-                    className="w-8 h-8 rounded-full object-cover"
-                    alt="avatar"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
-                    {profile?.full_name?.charAt(0) || user.email.charAt(0)}
-                  </div>
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/profile"
+                  className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 transition"
+                >
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      className="w-8 h-8 rounded-full object-cover"
+                      alt="avatar"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs font-semibold text-gray-600">
+                      {(displayName || "G").charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="max-w-[140px] truncate">{displayName}</span>
+                </Link>
+
+                {isPremiumAccount && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                    Premium
+                  </span>
                 )}
-                <span>{profile?.full_name || user.email}</span>
-              </Link>
+              </div>
             ) : (
-              <Link to="/login" className="text-gray-600 hover:text-emerald-600 transition">
+              <Link
+                to="/login"
+                className="text-gray-600 hover:text-emerald-600 transition"
+              >
                 Se connecter
               </Link>
             )}
 
-            {/* CTA */}
-            {user ? (
-              <Link
-                to="/create-event"
-                className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition"
-              >
-                Créer un événement
-              </Link>
-            ) : (
+            {/* IMPORTANT: suppression du bouton "Upgrade Premium" sur desktop */}
+            {!user && (
               <Link
                 to="/register"
                 className="px-4 py-2 rounded-lg bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition"
@@ -120,6 +144,13 @@ const MainLayout = ({ children }) => {
                 Créer un compte
               </Link>
             )}
+
+            <Link
+              to="/contact"
+              className="text-gray-600 hover:text-emerald-600 transition"
+            >
+              Contact
+            </Link>
           </nav>
 
           {/* BURGER MOBILE */}
@@ -132,18 +163,17 @@ const MainLayout = ({ children }) => {
         </div>
       </header>
 
-      {/* MENU MOBILE */}
+      {/* NAV MOBILE */}
       <AnimatePresence>
         {menuOpen && (
           <motion.div
             initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
+            animate={{ height: "auto", opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.3 }}
+            transition={{ duration: 0.25 }}
             className="lg:hidden bg-white/95 backdrop-blur border-b border-gray-200 overflow-hidden"
           >
             <div className="px-6 py-3 space-y-1 text-sm">
-
               {!user && (
                 <Link
                   to="/"
@@ -164,14 +194,23 @@ const MainLayout = ({ children }) => {
                 </Link>
               )}
 
+              {/* Bloc profil + badge Premium (mobile) */}
               {user ? (
-                <Link
-                  to="/profile"
-                  className="block py-2 text-gray-700 hover:text-emerald-600"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  👤 {profile?.full_name || user.email}
-                </Link>
+                <div className="flex items-center justify-between py-2">
+                  <Link
+                    to="/profile"
+                    className="flex items-center gap-2 text-gray-700 hover:text-emerald-600"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    <span>👤</span>
+                    <span className="max-w-[180px] truncate">{displayName}</span>
+                  </Link>
+                  {isPremiumAccount && (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-100 text-amber-700 border border-amber-200">
+                      Premium
+                    </span>
+                  )}
+                </div>
               ) : (
                 <Link
                   to="/login"
@@ -195,15 +234,17 @@ const MainLayout = ({ children }) => {
                 <AdminMenuLink />
               </div>
 
-              {/* CTA mobile */}
+              {/* CTA mobile (inchangé) */}
               {user ? (
-                <Link
-                  to="/create-event"
-                  className="block mt-2 text-center py-2 rounded-lg font-semibold text-white bg-emerald-600 hover:bg-emerald-700"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  Créer un événement
-                </Link>
+                profile && !isPremiumAccount && (
+                  <Link
+                    to="/premium"
+                    className="block mt-2 text-center py-2 rounded-lg font-semibold text-white bg-purple-600 hover:bg-purple-700"
+                    onClick={() => setMenuOpen(false)}
+                  >
+                    Upgrade Premium
+                  </Link>
+                )
               ) : (
                 <Link
                   to="/register"

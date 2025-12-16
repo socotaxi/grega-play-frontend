@@ -1,58 +1,85 @@
-import supabase from '../lib/supabaseClient';
+import supabase from "../lib/supabaseClient";
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 const API_KEY = import.meta.env.VITE_BACKEND_API_KEY;
 
 const eventService = {
-  // ✅ Récupérer un événement par ID (ancienne méthode conservée)
+  // ---------------------------------------------------------
+  // 🔵 Méthode simple : récupère l'événement complet (*)
+  // ---------------------------------------------------------
   async getEvent(eventId) {
-    const { data, error } = await supabase
-      .from('events')
-      .select('*')
-      .eq('id', eventId)
+    const { data, error, status } = await supabase
+      .from("events")
+      .select("*")
+      .eq("id", eventId)
       .single();
 
     if (error) {
-      console.error("Erreur Supabase getEvent:", error);
+      console.error("Erreur Supabase getEvent:", {
+        status,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       throw new Error("Erreur lors du chargement de l'événement");
     }
+
+    if (!data) {
+      throw new Error("Événement introuvable");
+    }
+
     return data;
   },
 
-  // ✅ Méthode principale
+  // ---------------------------------------------------------
+  // 🔵 Méthode principale détaillée (NOW: sécurisée)
+  // ---------------------------------------------------------
   async getEventById(eventId) {
-    const { data, error } = await supabase
-      .from('events')
-      .select(`
-        id,
-        title,
-        description,
-        theme,
-        deadline,
-        video_duration,
-        max_clip_duration,
-        user_id,
-        created_at,
-        public_code,
-        media_url,
-        final_video_path
-      `)
-      .eq('id', eventId)
+    const { data, error, status } = await supabase
+      .from("events")
+      .select("*")
+      .eq("id", eventId)
       .single();
 
     if (error) {
-      console.error("Erreur Supabase getEventById:", error);
+      console.error("Erreur Supabase getEventById:", {
+        status,
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      });
       throw new Error("Impossible de charger l'événement");
     }
+
+    if (!data) {
+      throw new Error("Événement introuvable");
+    }
+
     return data;
   },
 
-  // ✅ Récupérer les participants d’un event
+  // ---------------------------------------------------------
+  // 🔵 Méthode utilisée par EventDetailsPage.jsx
+  // ---------------------------------------------------------
+  async getEventDetails(eventId) {
+    try {
+      return await this.getEventById(eventId);
+    } catch (err) {
+      console.warn("getEventById a échoué, fallback sur getEvent :", err?.message || err);
+      return this.getEvent(eventId);
+    }
+  },
+
+  // ---------------------------------------------------------
+  // 🔵 Participants d’un événement
+  // ---------------------------------------------------------
   async getEventParticipants(eventId) {
     const { data, error } = await supabase
-      .from('invitations')
-      .select('*')
-      .eq('event_id', eventId);
+      .from("invitations")
+      .select("*")
+      .eq("event_id", eventId);
 
     if (error) {
       console.error("Erreur getEventParticipants:", error);
@@ -61,7 +88,9 @@ const eventService = {
     return data;
   },
 
-  // ✅ Créer un event
+  // ---------------------------------------------------------
+  // 🔵 Création événement
+  // ---------------------------------------------------------
   async createEvent({
     title,
     description,
@@ -75,50 +104,55 @@ const eventService = {
     enable_notifications,
     isPublic = false,
   }) {
+    const payload = {
+      title,
+      description,
+      theme,
+      deadline: endDate,
+      user_id: userId,
+      public_code,
+      media_url,
+      is_public: isPublic,
+    };
+
+    if (typeof videoDuration !== "undefined") {
+      payload.video_duration = videoDuration;
+    }
+    if (typeof maxClipDuration !== "undefined") {
+      payload.max_clip_duration = maxClipDuration;
+    }
+    if (typeof enable_notifications !== "undefined") {
+      payload.enable_notifications = enable_notifications;
+    }
+
     const { data, error } = await supabase
-      .from('events')
-      .insert([
-        {
-          title,
-          description,
-          theme,
-          deadline: endDate,
-          video_duration: videoDuration,
-          max_clip_duration: maxClipDuration,
-          user_id: userId,
-          public_code: public_code,
-          media_url: media_url,
-          enable_notifications: enable_notifications,
-          is_public: isPublic,
-        },
-      ])
+      .from("events")
+      .insert([payload])
       .select()
       .single();
 
     if (error) {
-      console.error('Erreur Supabase createEvent:', error);
-      throw new Error("Erreur lors de la création");
+      console.error("Erreur Supabase createEvent:", error);
+      throw new Error("Erreur lors de la création de l’événement");
     }
 
     return data;
   },
 
-  // ✅ Supprimer un event (via backend Node → suppression en cascade)
+  // ---------------------------------------------------------
+  // 🔵 Suppression event via backend sécurisé (Node)
+  // ---------------------------------------------------------
   async deleteEvent(eventId, userId) {
     if (!API_BASE_URL || !API_KEY) {
-      console.error(
-        'Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY).'
-      );
-      throw new Error(
-        "Configuration backend manquante pour la suppression de l'événement"
-      );
+      console.error("Config backend manquante pour deleteEvent.");
+      throw new Error("Configuration backend manquante.");
     }
 
     const res = await fetch(`${API_BASE_URL}/api/events/${eventId}`, {
-      method: 'DELETE',
+      method: "DELETE",
       headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
+        "Content-Type": "application/json",
+        "x-api-key": API_KEY,
       },
       body: JSON.stringify({ userId }),
     });
@@ -126,101 +160,137 @@ const eventService = {
     let data = {};
     try {
       data = await res.json();
-    } catch (e) {
-      // pas grave si pas de JSON dans la réponse
-    }
+    } catch (_) {}
 
     if (!res.ok) {
-      console.error('❌ Erreur API deleteEvent:', data);
-      throw new Error(
-        data.error || "Erreur lors de la suppression de l'événement"
-      );
+      console.error("❌ Erreur API deleteEvent:", data);
+      throw new Error(data.error || "Erreur lors de la suppression de l'événement");
     }
 
     return true;
   },
 
-  // ✅ Charger les events du dashboard (via RPC déjà créée en DB)
+  // ---------------------------------------------------------
+  // 🔵 Événements du Dashboard (RPC get_user_events)
+  // ---------------------------------------------------------
   async getDashboardEvents(userId, userEmail) {
-    const { data, error } = await supabase.rpc('get_user_events', {
+    const { data, error } = await supabase.rpc("get_user_events", {
       p_user_id: userId,
       p_user_email: userEmail,
     });
 
     if (error) {
-      console.error('Erreur RPC get_user_events:', error);
+      console.error("Erreur RPC get_user_events:", error);
       throw new Error("Erreur chargement tableau de bord");
     }
+
     return data;
   },
 
-  // ✅ Récupérer toutes les vidéos d’un event (utile pour FinalVideoPage)
+  // ---------------------------------------------------------
+  // 🔵 Récupération vidéos d’un event (si utilisé)
+  // ---------------------------------------------------------
   async getEventVideos(eventId) {
     const { data, error } = await supabase
-      .from('videos')
-      .select(`
-        id,
-        event_id,
-        user_id,
-        storage_path,
-        created_at
-      `)
-      .eq('event_id', eventId);
+      .from("videos")
+      .select("id, event_id, user_id, storage_path, created_at")
+      .eq("event_id", eventId);
 
     if (error) {
       console.error("Erreur getEventVideos:", error);
       throw new Error("Erreur récupération vidéos");
     }
+
     return data;
   },
 
-  // ✅ Récupérer les stats (invitations / vidéos / en attente) depuis le backend Node
+  // ---------------------------------------------------------
+  // 🔵 Stats événement (backend Node /api/events/:id/stats)
+  // Objectif: NE JAMAIS casser le Dashboard si la route manque.
+  // ---------------------------------------------------------
   async getEventStats(eventId) {
+    const fallback = {
+      event_id: eventId,
+      totalInvitations: 0,
+      totalWithVideo: 0,
+      totalPending: 0,
+
+      // champs optionnels (si ton backend les renvoie)
+      videos_count: 0,
+      invites_count: 0,
+      max_videos: 0,
+      hasReachedUploadLimit: false,
+      is_premium_event: false,
+      status: "open",
+    };
+
+    // Si backend pas configuré -> fallback silencieux
     if (!API_BASE_URL || !API_KEY) {
-      console.error(
-        'Config backend manquante (VITE_BACKEND_URL ou VITE_BACKEND_API_KEY).'
-      );
-      // On renvoie des valeurs neutres pour ne pas casser l'affichage
-      return {
-        totalInvitations: 0,
-        totalWithVideo: 0,
-        totalPending: 0,
-      };
+      console.warn("Config backend manquante pour stats -> fallback.");
+      return fallback;
     }
 
-    const res = await fetch(`${API_BASE_URL}/api/events/${eventId}/stats`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': API_KEY,
-      },
-    });
+    let res;
+    try {
+      res = await fetch(`${API_BASE_URL}/api/events/${eventId}/stats`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          "x-api-key": API_KEY,
+        },
+      });
+    } catch (e) {
+      console.warn("getEventStats fetch failed -> fallback:", e?.message || e);
+      return fallback;
+    }
 
-    const data = await res.json().catch(() => ({}));
+    // Route absente / event introuvable -> fallback
+    if (res.status === 404) {
+      return fallback;
+    }
 
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (_) {
+      data = {};
+    }
+
+    // Toute autre erreur -> fallback (pour ne pas casser Promise.all)
     if (!res.ok) {
-      console.error('❌ Erreur API getEventStats:', data);
-      throw new Error(data.error || 'Erreur récupération stats événement');
+      console.warn("❌ getEventStats non-ok -> fallback:", {
+        status: res.status,
+        data,
+      });
+      return fallback;
     }
 
-    return data;
+    // Normaliser: on merge avec fallback pour garantir les clés
+    return { ...fallback, ...data };
   },
 
-  // ✅ Mettre à jour la date limite d'un événement
-  async updateDeadline(eventId, newDeadline) {
+  // ---------------------------------------------------------
+  // 🔵 Mise à jour deadline (utilisée dans EventDetailsPage)
+  // ---------------------------------------------------------
+  async updateEventDeadline(eventId, newDeadline) {
     const { data, error } = await supabase
-      .from('events')
+      .from("events")
       .update({ deadline: newDeadline })
-      .eq('id', eventId)
+      .eq("id", eventId)
       .select()
       .single();
 
     if (error) {
-      console.error('Erreur updateDeadline:', error);
-      throw new Error('Impossible de mettre à jour la date limite');
+      console.error("Erreur updateEventDeadline:", error);
+      throw new Error("Impossible de mettre à jour la date limite");
     }
 
     return data;
+  },
+
+  // (ancien nom conservé si utilisé ailleurs)
+  async updateDeadline(eventId, newDeadline) {
+    return this.updateEventDeadline(eventId, newDeadline);
   },
 };
 

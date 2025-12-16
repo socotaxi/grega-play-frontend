@@ -1,10 +1,11 @@
+// src/pages/ProfilePage.jsx
 import React, { useEffect, useState } from 'react';
-import MainLayout from '../components/layout/MainLayout';
+import MainLayout from "../components/layout/MainLayout";
 import { useAuth } from '../context/AuthContext';
 import supabase from '../lib/supabaseClient';
 import Button from '../components/ui/Button';
 import { useNavigate } from 'react-router-dom';
-import { parsePhoneNumberFromString } from 'libphonenumber-js'; // ✅ AJOUT
+import { parsePhoneNumberFromString } from 'libphonenumber-js';
 
 // Options pays (cohérentes avec RegisterForm)
 const countryOptions = [
@@ -35,9 +36,9 @@ const ProfilePage = () => {
   const [formData, setFormData] = useState({});
   const [avatarFile, setAvatarFile] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [phoneError, setPhoneError] = useState(''); // ✅ AJOUT
+  const [phoneError, setPhoneError] = useState('');
 
-  // Listes pour la date 
+  // Listes pour la date
   const currentYear = new Date().getFullYear();
   const years = Array.from({ length: 120 }, (_, idx) => currentYear - idx);
   const days = Array.from({ length: 31 }, (_, idx) => idx + 1);
@@ -67,46 +68,48 @@ const ProfilePage = () => {
 
     if (error) {
       console.error(error);
-    } else {
-      // Date -> jour / mois / année
-      let birth_day = '';
-      let birth_month = '';
-      let birth_year = '';
-      if (data.birth_date) {
-        const d = new Date(data.birth_date);
-        if (!isNaN(d.getTime())) {
-          birth_day = String(d.getDate());
-          birth_month = String(d.getMonth() + 1);
-          birth_year = String(d.getFullYear());
-        }
-      }
-
-      // Téléphone -> indicatif + numéro (style Leetchi)
-      let phoneCountryCode = '+242';
-      let phoneNumber = '';
-      if (data.phone) {
-        const trimmed = data.phone.trim();
-        if (trimmed.startsWith('+')) {
-          const [code, ...rest] = trimmed.split(' ');
-          phoneCountryCode = code || '+242';
-          phoneNumber = rest.join(' ') || '';
-        } else {
-          // Ancien format sans indicatif stocké correctement
-          phoneNumber = trimmed;
-        }
-      }
-
-      setProfile(data);
-      setFormData({
-        ...data,
-        birth_day,
-        birth_month,
-        birth_year,
-        gender: data.gender || '',
-        phoneCountryCode,
-        phoneNumber,
-      });
+      return;
     }
+
+    // Date -> jour / mois / année
+    let birth_day = '';
+    let birth_month = '';
+    let birth_year = '';
+    if (data.birth_date) {
+      const d = new Date(data.birth_date);
+      if (!isNaN(d.getTime())) {
+        birth_day = String(d.getDate());
+        birth_month = String(d.getMonth() + 1);
+        birth_year = String(d.getFullYear());
+      }
+    }
+
+    // Téléphone -> indicatif + numéro (style Leetchi)
+    let phoneCountryCode = '+242';
+    let phoneNumber = '';
+    if (data.phone) {
+      const trimmed = data.phone.trim();
+      if (trimmed.startsWith('+')) {
+        const parts = trimmed.split(' ');
+        const code = parts[0];
+        const rest = parts.slice(1).join(' ');
+        phoneCountryCode = code || '+242';
+        phoneNumber = rest || '';
+      } else {
+        phoneNumber = trimmed;
+      }
+    }
+
+    setProfile(data);
+    setFormData({
+      ...data,
+      birth_day,
+      birth_month,
+      birth_year,
+      gender: data.gender || '',
+      phoneCountryCode,
+      phoneNumber,
+    });
   };
 
   useEffect(() => {
@@ -127,7 +130,6 @@ const ProfilePage = () => {
           [name]: type === 'checkbox' ? checked : value,
         };
 
-        // ✅ On efface l'erreur si l'utilisateur modifie le téléphone
         if (name === 'phoneNumber' || name === 'phoneCountryCode') {
           setPhoneError('');
         }
@@ -174,7 +176,7 @@ const ProfilePage = () => {
       birth_date = `${year}-${month}-${day}`;
     }
 
-    // ✅ Construire téléphone complet + validation internationale
+    // Construire téléphone complet + validation internationale
     let phoneE164 = null;
 
     if (formData.phoneNumber) {
@@ -191,7 +193,6 @@ const ProfilePage = () => {
         return;
       }
 
-      // Format international E.164 (+2426...)
       phoneE164 = parsed.number;
     }
 
@@ -199,7 +200,7 @@ const ProfilePage = () => {
       full_name: formData.full_name,
       birth_date,
       country: formData.country,
-      phone: phoneE164, // ✅ On stocke uniquement la version propre
+      phone: phoneE164,
       accept_news: formData.accept_news,
       avatar_url,
       gender: formData.gender || null,
@@ -227,7 +228,7 @@ const ProfilePage = () => {
       <MainLayout>
         <div className="min-h-[calc(100vh-80px)] bg-gray-50">
           <div className="max-w-3xl mx-auto py-10 px-4 sm:px-6 lg:px-8 text-center text-sm text-gray-500">
-            Chargement du profil...
+            Chargement du profil.
           </div>
         </div>
       </MainLayout>
@@ -236,27 +237,93 @@ const ProfilePage = () => {
 
   const displayEmail = profile.email || user?.email || '';
 
+  // —————————————
+  // Logique statut Premium / plan
+  // —————————————
+  const now = new Date();
+  const rawExpires = profile.premium_account_expires_at;
+  const expiresDate = rawExpires ? new Date(rawExpires) : null;
+
+  const hasNewPremiumFlag =
+    profile.is_premium_account === true &&
+    expiresDate &&
+    expiresDate > now;
+
+  const hasLegacyPremiumFlag = profile.is_premium === true;
+
+  const isPremiumAccount = hasNewPremiumFlag || hasLegacyPremiumFlag;
+
+  let premiumStatusLabel = '';
+  if (hasNewPremiumFlag && expiresDate) {
+    premiumStatusLabel = `Compte Premium actif jusqu’au ${expiresDate.toLocaleDateString('fr-FR', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    })}`;
+  } else if (hasLegacyPremiumFlag) {
+    premiumStatusLabel = 'Compte Premium actif (ancien mode).';
+  } else {
+    premiumStatusLabel = 'Compte gratuit actuellement. Tu peux tester Premium gratuitement depuis la page Premium.';
+  }
+
+  const freePlan = {
+    name: 'Gratuit',
+    maxVideosPerEvent: '5 vidéos / événement',
+    maxDurationPerClip: '30 secondes par vidéo',
+    transitions: 'Transitions de base',
+    music: 'Sans musique signature',
+    priority: 'Traitement standard',
+  };
+
+  const premiumPlan = {
+    name: 'Premium (lancement)',
+    maxVideosPerEvent: 'jusqu’à 50 vidéos / événement',
+    maxDurationPerClip: '60 secondes ou plus par vidéo',
+    transitions: 'Transitions avancées',
+    music: 'Intro / outro + musique signature Grega Play',
+    priority: 'Traitement prioritaire',
+  };
+
+  const activePlan = isPremiumAccount ? premiumPlan : freePlan;
+
   return (
     <MainLayout>
-      <div className="min-h-[calc(100vh-80px)] bg-gray-50">
+      <div className="min-h-[calc(100vh-80px)] bg-gradient-to-b from-slate-900/5 via-white to-gray-50">
         <div className="max-w-3xl mx-auto py-10 px-4 sm:px-6 lg:px-8 space-y-6">
-          {/* En-tête */}
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          {/* En-tête + actions */}
+          <div className="bg-white/80 backdrop-blur-sm border border-gray-100 shadow-sm rounded-2xl px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">Mon profil</h1>
+              <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
+                Mon profil
+              </h1>
               <p className="mt-1 text-sm text-gray-600">
-                Gère les informations de ton compte Grega Play.
+                Paramètres du compte et informations personnelles.
               </p>
             </div>
             <div className="flex flex-wrap gap-2 justify-start sm:justify-end">
               {!editMode && (
-                <Button onClick={() => setEditMode(true)} className="text-sm py-2.5">
+                <Button
+                  onClick={() => setEditMode(true)}
+                  variant="secondary"
+                  className="text-xs sm:text-sm py-2.5 px-3 sm:px-4"
+                >
                   Modifier le profil
                 </Button>
               )}
+
+              {!isPremiumAccount && (
+                <Button
+                  type="button"
+                  className="text-xs sm:text-sm py-2.5 px-3 sm:px-4"
+                  onClick={() => navigate('/premium')}
+                >
+                  Upgrade Premium
+                </Button>
+              )}
+
               <Button
                 variant="secondary"
-                className="text-sm py-2.5"
+                className="text-xs sm:text-sm py-2.5 px-3 sm:px-4 bg-gray-50 text-gray-700 border-gray-200 hover:bg-gray-100"
                 onClick={async () => {
                   await logout();
                   navigate('/login');
@@ -269,9 +336,9 @@ const ProfilePage = () => {
 
           {/* Carte profil / formulaire */}
           {!editMode ? (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-6">
+            <div className="bg-white rounded-2xl shadow-md border border-gray-100 p-6 sm:p-7 space-y-6">
               {/* Bloc identité */}
-              <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="flex flex-col sm:flex-row sm:items-center gap-5 pb-4 border-b border-gray-100">
                 <div className="flex-shrink-0 flex items-center justify-center">
                   {profile.avatar_url ? (
                     <img
@@ -292,9 +359,23 @@ const ProfilePage = () => {
                     {profile.full_name || 'Utilisateur Grega Play'}
                   </h2>
                   <p className="text-sm text-gray-500">{displayEmail}</p>
-                  <div className="mt-3 inline-flex px-3 py-1 rounded-full bg-gray-100 text-[11px] text-gray-600 font-medium">
-                    Compte Grega Play
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span
+                      className={`inline-flex px-3 py-1 rounded-full text-[11px] font-medium border ${
+                        isPremiumAccount
+                          ? 'bg-purple-50 text-purple-700 border-purple-200'
+                          : 'bg-gray-100 text-gray-600 border-gray-200'
+                      }`}
+                    >
+                      {isPremiumAccount
+                        ? 'Compte Premium Grega Play'
+                        : 'Compte gratuit Grega Play'}
+                    </span>
                   </div>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {premiumStatusLabel}
+                  </p>
                 </div>
               </div>
 
@@ -347,13 +428,93 @@ const ProfilePage = () => {
                   </p>
                 </div>
               </div>
+
+              {/* Mon plan */}
+              <div className="mt-4 border-t border-gray-100 pt-4">
+                <div className="flex items-center justify-between gap-2 mb-2">
+                  <div>
+                    <h3 className="text-sm font-semibold text-gray-900">
+                      Mon plan Grega Play
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      Récapitulatif de ce que ton compte te permet aujourd’hui.
+                    </p>
+                  </div>
+                  {!isPremiumAccount && (
+                    <Button
+                      type="button"
+                      className="hidden sm:inline-flex text-xs py-1.5 px-3"
+                      onClick={() => navigate('/premium')}
+                    >
+                      Passer en Premium
+                    </Button>
+                  )}
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Type de plan
+                    </p>
+                    <p className="mt-1 text-gray-900">{activePlan.name}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Vidéos par événement
+                    </p>
+                    <p className="mt-1 text-gray-900">
+                      {activePlan.maxVideosPerEvent}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Durée max par vidéo
+                    </p>
+                    <p className="mt-1 text-gray-900">
+                      {activePlan.maxDurationPerClip}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Transitions
+                    </p>
+                    <p className="mt-1 text-gray-900">
+                      {activePlan.transitions}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Musique / branding
+                    </p>
+                    <p className="mt-1 text-gray-900">{activePlan.music}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                      Priorité de traitement
+                    </p>
+                    <p className="mt-1 text-gray-900">{activePlan.priority}</p>
+                  </div>
+                </div>
+
+                {!isPremiumAccount && (
+                  <div className="mt-3 sm:hidden">
+                    <Button
+                      type="button"
+                      className="w-full text-xs sm:text-sm py-2"
+                      onClick={() => navigate('/premium')}
+                    >
+                      Passer en Premium
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           ) : (
             <form
               onSubmit={handleSubmit}
-              className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5"
+              className="bg-white rounded-2xl shadow-md border border-gray-100 p-6 sm:p-7 space-y-5"
             >
-              <h2 className="text-lg font-semibold text-gray-900 mb-2">
+              <h2 className="text-lg font-semibold text-gray-900 mb-1">
                 Modifier les informations
               </h2>
               <p className="text-xs text-gray-500 mb-4">
@@ -408,8 +569,8 @@ const ProfilePage = () => {
                     <p className="mt-1 text-[11px] text-red-600">{phoneError}</p>
                   )}
                   <p className="mt-1 text-[11px] text-gray-500">
-                    Nous stockons ton numéro au format international (+XXX…), comme les
-                    grandes applis.
+                    Nous stockons ton numéro au format international (+XXX…), comme
+                    les grandes applis.
                   </p>
                 </div>
 
@@ -432,7 +593,7 @@ const ProfilePage = () => {
                   </select>
                 </div>
 
-                {/* Date de naissance (jour / mois / année) */}
+                {/* Date de naissance */}
                 <div>
                   <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
                     Date de naissance

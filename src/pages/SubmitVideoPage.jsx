@@ -1,5 +1,4 @@
-// src/pages/SubmitVideoPage.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import Button from '../components/ui/Button';
@@ -15,38 +14,106 @@ const MAX_VIDEO_DURATION_SECONDS = 30;
 const MAX_VIDEO_SIZE_MB = 50;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 
+const clampPct = (v) => {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Math.max(0, Math.min(100, Math.round(n)));
+};
+
+const formatSpeed = (bps) => {
+  const n = Number(bps);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  const kb = n / 1024;
+  if (kb < 1024) return `${kb.toFixed(0)} Ko/s`;
+  const mb = kb / 1024;
+  return `${mb.toFixed(1)} Mo/s`;
+};
+
+const formatEta = (sec) => {
+  const s = Number(sec);
+  if (!Number.isFinite(s) || s <= 0) return null;
+  if (s < 60) return `${Math.round(s)}s`;
+  const m = Math.floor(s / 60);
+  const r = Math.round(s % 60);
+  return `${m}m ${String(r).padStart(2, "0")}s`;
+};
+
 const SubmitVideoPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
+
   const { user, profile } = useAuth();
 
   const [event, setEvent] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState(null);
-  const [existingVideo, setExistingVideo] = useState(null);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [isInvited, setIsInvited] = useState(true);
 
-  // Nom affiché dans l'UI
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [isIndeterminateUpload, setIsIndeterminateUpload] = useState(false);
+
+  // ✅ NEW: infos “réelles” (bytes/vitesse/ETA)
+  const [uploadMeta, setUploadMeta] = useState({
+    loadedLabel: null,
+    totalLabel: null,
+    speedBps: null,
+    etaSeconds: null,
+  });
+
+  const [capabilities, setCapabilities] = useState(null);
+  const [capLoading, setCapLoading] = useState(true);
+  const [capError, setCapError] = useState(null);
+
   const displayName =
     profile?.full_name && profile.full_name !== "User"
       ? profile.full_name
-      : user?.email || "Invité";
+      : user?.user_metadata?.full_name ||
+        user?.user_metadata?.name ||
+        user?.email ||
+        "Participant";
 
-  // Email utilisé comme identifiant interne (participant_name = email)
-  const participantEmail = user?.email || "";
+  const now = new Date();
+  const isEventExpired = event?.deadline ? new Date(event.deadline) < now : false;
+  const isEventClosed = event?.status && event.status !== "open";
+  const isPublicEvent = event?.is_public === true;
+
+  const isCreator = Boolean(user?.id && event?.user_id && user.id === event.user_id);
+
+  const latestVideo = capabilities?.state?.latestVideo || null;
+  const hasReachedUploadLimit = Boolean(capabilities?.state?.hasReachedUploadLimit);
+  const canUploadMultipleVideos = Boolean(capabilities?.actions?.canUploadMultipleVideos);
+
+  const canUpload = Boolean(
+    !isEventExpired &&
+    !isEventClosed &&
+    capabilities?.actions?.canUploadVideo
+  );
+
+  const isBlockedByCapabilities = Boolean(
+    capabilities && (!capabilities?.actions?.canUploadVideo || hasReachedUploadLimit)
+  );
+
+  const latestVideoUrl = useMemo(() => {
+    if (!latestVideo?.storage_path) return null;
+    const { data } = supabase.storage.from('videos').getPublicUrl(latestVideo.storage_path);
+    return data?.publicUrl || null;
+  }, [latestVideo?.storage_path]);
+
+  const showProgressBar = submitting || (uploadProgress > 0 && uploadProgress < 100);
 
   useEffect(() => {
     const fetchEventDetails = async () => {
       try {
+        setLoading(true);
+        setError(null);
+
         const eventData = await eventService.getEvent(eventId);
         setEvent(eventData);
 
-        // Messages d'info si déjà fermé / expiré
         if (eventData.status !== 'open') {
           setError("Cet événement n'accepte plus de vidéos.");
         }
@@ -55,94 +122,76 @@ const SubmitVideoPage = () => {
         if (endDate < new Date()) {
           setError('La date limite de cet événement est dépassée.');
         }
-
-        // 🔒 Déterminer si l'utilisateur est le créateur
-        const isCreatorLocal =
-          user?.id && eventData?.user_id && eventData.user_id === user.id;
-
-        const isPublicEvent = eventData?.is_public === true;
-
-        if (isCreatorLocal || isPublicEvent) {
-          // Le créateur et les participants d'un événement public
-          // sont considérés comme "autorisés" sans vérification d'invitation.
-          setIsInvited(true);
-        } else if (participantEmail) {
-          // 🔒 Vérifier que l'utilisateur (email) est bien invité à cet évènement
-          const { data: invites, error: inviteErr } = await supabase
-            .from("invitations")
-            .select("email")
-            .eq("event_id", eventId)
-            .eq("email", participantEmail);
-
-          if (inviteErr) {
-            console.error("Erreur vérification invitation:", inviteErr);
-          }
-
-          const invited = invites && invites.length > 0;
-          setIsInvited(!!invited);
-
-          if (!invited) {
-            setError("Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.");
-          }
-        }
       } catch (err) {
         console.error('Erreur chargement événement:', err);
-        setError("Impossible de charger les détails de l'événement.");
+        setError("Impossible de charger l’événement.");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchEventDetails();
-  }, [eventId, participantEmail, user]);
+    if (eventId) fetchEventDetails();
+  }, [eventId]);
 
   useEffect(() => {
-    const checkExistingVideo = async () => {
-      if (!user?.id) return;
+    let cancelled = false;
+
+    const loadCaps = async () => {
       try {
-        const video = await videoService.getMyVideoForEvent(eventId, user.id);
-        setExistingVideo(video);
-      } catch {
-        setExistingVideo(null);
+        setCapLoading(true);
+        setCapError(null);
+        setCapabilities(null);
+
+        if (!eventId || !user?.id) {
+          return;
+        }
+
+        const caps = await videoService.getEventCapabilities(eventId);
+
+        if (!cancelled) {
+          setCapabilities(caps);
+        }
+      } catch (e) {
+        console.warn("Capabilities load failed:", e);
+        if (!cancelled) {
+          setCapabilities(null);
+          setCapError(
+            e?.message ||
+            "Impossible de charger les droits (capabilities). Rafraîchis la page."
+          );
+        }
+      } finally {
+        if (!cancelled) setCapLoading(false);
       }
     };
 
-    checkExistingVideo();
-  }, [user?.id, eventId]);
+    loadCaps();
+    return () => { cancelled = true; };
+  }, [eventId, user?.id]);
 
   useEffect(() => {
-    if (success) {
-      const timer = setTimeout(() => {
-        navigate(`/events/${eventId}/final`);
-      }, 2000);
-      return () => clearTimeout(timer);
-    }
+    if (!success) return;
+    const timer = setTimeout(() => navigate(`/events/${eventId}/final`), 2000);
+    return () => clearTimeout(timer);
   }, [success, navigate, eventId]);
-
-  // 🔒 Calcul central : évènement expiré / fermé
-  const now = new Date();
-  const isEventExpired = event?.deadline
-    ? new Date(event.deadline) < now
-    : false;
-  const isEventClosed = event?.status && event.status !== "open";
-
-  // Le créateur de l'évènement doit toujours pouvoir envoyer une vidéo
-  const isCreator =
-    user?.id && event?.user_id && user.id === event.user_id;
-
-  const isPublicEvent = event?.is_public === true;
-
-  // On peut uploader si événement ouvert + (événement public OU invité OU créateur)
-  const canUpload =
-    !isEventExpired && !isEventClosed && (isPublicEvent || isInvited || isCreator);
 
   const handleFileChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // 🔒 Double garde-fou : si l'événement est expiré/fermé ou non autorisé, on bloque
+    setUploadProgress(0);
+    setIsIndeterminateUpload(false);
+    setUploadMeta({ loadedLabel: null, totalLabel: null, speedBps: null, etaSeconds: null });
+    setSuccess(false);
+
     if (!canUpload) {
-      setError("Cet événement est terminé ou vous n'êtes pas autorisé à envoyer une vidéo.");
+      setError("Cet événement n'accepte plus de vidéos.");
+      e.target.value = null;
+      return;
+    }
+
+    if (isBlockedByCapabilities) {
+      setError("Vous ne pouvez plus envoyer de vidéo pour cet événement (limite atteinte ou envois fermés).");
       e.target.value = null;
       return;
     }
@@ -153,7 +202,6 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    // 🔒 Contrôle du poids côté frontend
     if (file.size > MAX_VIDEO_SIZE_BYTES) {
       setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
       setSelectedFile(null);
@@ -164,44 +212,52 @@ const SubmitVideoPage = () => {
 
     const video = document.createElement("video");
     video.preload = "metadata";
+
     video.onloadedmetadata = () => {
       window.URL.revokeObjectURL(video.src);
 
       if (video.duration > MAX_VIDEO_DURATION_SECONDS) {
-        setError(`⛔ La vidéo ne doit pas dépasser ${MAX_VIDEO_DURATION_SECONDS} secondes.`);
+        setError(`⛔ La vidéo dépasse ${MAX_VIDEO_DURATION_SECONDS} secondes.`);
         setSelectedFile(null);
         setPreviewUrl(null);
         e.target.value = null;
-      } else {
-        setSelectedFile(file);
-        setPreviewUrl(URL.createObjectURL(file));
-        setError(null);
+        return;
       }
-    };
-    video.src = URL.createObjectURL(file);
-  };
 
-  const handleDeleteVideo = async () => {
-    if (!window.confirm('Supprimer votre vidéo ?')) return;
-    try {
-      await videoService.deleteVideo(existingVideo.id);
-      setExistingVideo(null);
-      toast.success('Vidéo supprimée');
-    } catch {
-      toast.error('Erreur lors de la suppression');
-    }
+      setError(null);
+      setSelectedFile(file);
+      setPreviewUrl(URL.createObjectURL(file));
+    };
+
+    video.onerror = () => {
+      setError("Impossible de lire la vidéo. Merci d’essayer un autre fichier.");
+      setSelectedFile(null);
+      setPreviewUrl(null);
+      e.target.value = null;
+    };
+
+    video.src = URL.createObjectURL(file);
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
 
-    if (!event) {
-      setError("Événement introuvable.");
+    if (!user?.id) {
+      setError("Vous devez être connecté pour envoyer une vidéo.");
       return;
     }
 
-    // 🔒 Re-vérifier côté front juste avant envoi
+    if (!event) {
+      setError("Impossible de charger l’événement.");
+      return;
+    }
+
+    if (!capabilities) {
+      setError("Impossible de charger les droits (capabilities). Rafraîchis la page.");
+      return;
+    }
+
     const nowLocal = new Date();
     const endDate = event.deadline ? new Date(event.deadline) : null;
 
@@ -210,10 +266,17 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    // Si ce n'est pas le créateur, il doit être invité et avoir un email,
-    // sauf si l'événement est public (dans ce cas tout utilisateur connecté peut participer)
-    if (!isCreator && !isPublicEvent && (!isInvited || !participantEmail)) {
-      setError("Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.");
+    if (!capabilities?.role?.isCreator && !capabilities?.role?.isInvited && !isPublicEvent) {
+      setError("Vous n'êtes pas autorisé à envoyer une vidéo pour cet événement.");
+      return;
+    }
+
+    if (isBlockedByCapabilities) {
+      if (capabilities?.limits?.maxUploadsPerEvent === 1 && hasReachedUploadLimit) {
+        setError("Vous avez déjà envoyé votre vidéo pour cet événement. En compte gratuit, c’est 1 vidéo par événement.");
+      } else {
+        setError("Vous ne pouvez plus envoyer de vidéo pour cet événement (limite atteinte ou envois fermés).");
+      }
       return;
     }
 
@@ -222,75 +285,139 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    // Double-check poids avant envoi
     if (selectedFile.size > MAX_VIDEO_SIZE_BYTES) {
       setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
       return;
     }
 
     setSubmitting(true);
+    setSuccess(false);
 
-    // 🟦 DÉBUT : simulation de progression
-    setUploadProgress(10);
-    let intervalId = null;
+    setIsIndeterminateUpload(false);
+    setUploadMeta({ loadedLabel: null, totalLabel: null, speedBps: null, etaSeconds: null });
 
-    intervalId = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(intervalId);
-          return 90;
-        }
-        return prev + 0.5; // progression douce
-      });
-    }, 500);
-    // 🟦 FIN : simulation de progression
+    // barre visible immédiatement
+    setUploadProgress(1);
 
     try {
-      // Upload de la vidéo (passera ensuite par les garde-fous backend)
-      await videoService.uploadVideo(eventId, user.id, selectedFile, participantEmail);
+      const payload = {
+        eventId,
+        userId: user.id,
+        participantName: displayName,
+        participantEmail: user.email,
+      };
 
-      // Log dans le feed d'activité
-      await activityService.logActivity({
-        event_id: eventId,
-        user_id: user?.id || null,
-        type: "uploaded_video",
-        message: `${displayName} a posté une vidéo 🎥`,
+      await videoService.uploadVideo(selectedFile, payload, (pctRaw, meta) => {
+        // indéterminé
+        if (pctRaw === -1) {
+          setIsIndeterminateUpload(true);
+          if (meta) {
+            setUploadMeta({
+              loadedLabel: meta.loadedLabel ?? null,
+              totalLabel: meta.totalLabel ?? null,
+              speedBps: meta.speedBps ?? null,
+              etaSeconds: meta.etaSeconds ?? null,
+            });
+          }
+          setUploadProgress((prev) => (prev > 0 ? prev : 10));
+          return;
+        }
+
+        setIsIndeterminateUpload(false);
+
+        if (meta) {
+          setUploadMeta({
+            loadedLabel: meta.loadedLabel ?? null,
+            totalLabel: meta.totalLabel ?? null,
+            speedBps: meta.speedBps ?? null,
+            etaSeconds: meta.etaSeconds ?? null,
+          });
+        }
+
+        const pct = clampPct(pctRaw);
+        if (pct === null) return;
+
+        if (pct >= 100) {
+          setUploadProgress(99);
+          return;
+        }
+
+        setUploadProgress(Math.max(1, pct));
       });
 
-      // Upload terminé → on termine la barre à 100 %
-      setUploadProgress(100);
-      setSuccess(true);
+      try {
+        await activityService.addActivity({
+          event_id: eventId,
+          user_id: user.id,
+          type: "video_uploaded",
+          message: `${displayName} a envoyé une vidéo`,
+        });
+      } catch (activityErr) {
+        console.warn("⚠️ Activity feed error (non bloquant):", activityErr);
+      }
 
+      toast.success("Merci pour ta vidéo !");
+      setSuccess(true);
+      setSelectedFile(null);
+      setPreviewUrl(null);
+
+      setIsIndeterminateUpload(false);
+      setUploadProgress(100);
+
+      try {
+        const caps = await videoService.getEventCapabilities(eventId);
+        setCapabilities(caps);
+      } catch {
+        // no-op
+      }
     } catch (err) {
       console.error("Erreur envoi vidéo:", err);
-      setError(err.message || "Une erreur est survenue.");
+      setError(err?.message || "Une erreur s'est produite lors de l'envoi de la vidéo.");
+      toast.error(err?.message || "Erreur lors de l’envoi de la vidéo.");
+
+      setIsIndeterminateUpload(false);
+      setUploadMeta({ loadedLabel: null, totalLabel: null, speedBps: null, etaSeconds: null });
       setUploadProgress(0);
     } finally {
       setSubmitting(false);
-      if (intervalId) clearInterval(intervalId);
     }
   };
 
-  if (loading) return <Loading fullPage />;
-
-  if (success) {
+  if (loading || capLoading) {
     return (
       <MainLayout>
         <div className="max-w-3xl mx-auto px-4 py-8">
-          <div className="bg-white shadow rounded-lg p-6 text-center">
-            <h2 className="text-lg font-semibold text-green-600">Merci pour votre vidéo !</h2>
-            <p className="mt-2 text-sm text-gray-600">
-              Vous allez être redirigé automatiquement vers la vidéo finale...
-            </p>
-          </div>
+          <Loading />
         </div>
       </MainLayout>
     );
   }
 
-  const videoUrl = existingVideo
-    ? supabase.storage.from('videos').getPublicUrl(existingVideo.storage_path).data.publicUrl
-    : null;
+  if (!capabilities) {
+    return (
+      <MainLayout>
+        <div className="max-w-3xl mx-auto px-4 py-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-4">{event?.title}</h1>
+
+          <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
+            {capError || "Impossible de charger les droits (capabilities)."}
+          </div>
+
+          <Button type="button" variant="secondary" onClick={() => navigate(`/events/${eventId}/final`)}>
+            Voir la vidéo finale
+          </Button>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  const isNotAuthorized =
+    !capabilities?.role?.isCreator &&
+    !capabilities?.role?.isInvited &&
+    !isPublicEvent;
+
+  const speedLabel = formatSpeed(uploadMeta?.speedBps);
+  const etaLabel = formatEta(uploadMeta?.etaSeconds);
 
   return (
     <MainLayout>
@@ -304,23 +431,17 @@ const SubmitVideoPage = () => {
           </div>
         )}
 
-        {!isInvited && !isCreator && !isPublicEvent && (
+        {isNotAuthorized && (
           <div className="mb-4 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md">
-            Vous n'êtes pas invité à cet événement. Vous ne pouvez pas envoyer de vidéo.
+            Vous n'êtes pas autorisé à cet événement. Vous ne pouvez pas envoyer de vidéo.
           </div>
         )}
 
-        {existingVideo && (
-          <div className="mb-6 bg-white p-4 border rounded shadow">
-            <h3 className="text-lg font-medium text-gray-900 mb-2">🎬 Vidéo déjà envoyée</h3>
-            <div className="w-full aspect-w-9 aspect-h-16 mb-3 rounded-md shadow-sm overflow-hidden">
-              <video
-                controls
-                src={videoUrl}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <Button variant="danger" onClick={handleDeleteVideo}>Supprimer ma vidéo</Button>
+        {!isNotAuthorized && canUpload && isBlockedByCapabilities && (
+          <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md">
+            {capabilities?.limits?.maxUploadsPerEvent === 1 && hasReachedUploadLimit
+              ? "Vous avez déjà envoyé votre vidéo pour cet événement. En compte gratuit, c’est 1 vidéo par événement."
+              : "Vous ne pouvez plus envoyer de vidéo pour cet événement."}
           </div>
         )}
 
@@ -330,64 +451,104 @@ const SubmitVideoPage = () => {
           </div>
         )}
 
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded shadow">
-          <div>
-            <label className="block text-sm font-medium text-gray-700">Participant</label>
-            <p className="mt-1 text-gray-900 font-medium">{displayName}</p>
-          </div>
+        {latestVideo && (
+          <div className="mb-6 bg-white p-4 border rounded shadow">
+            <h3 className="text-lg font-medium text-gray-900 mb-2">🎬 Vidéo déjà envoyée</h3>
 
-          {/* On n'affiche le bloc d'upload QUE si l'événement accepte encore des vidéos et que l'utilisateur est invité ou créateur */}
-          {!existingVideo && canUpload && (
-            <>
-              <div>
-                <label className="block text	sm font-medium text-gray-700">Vidéo</label>
-                <input
-                  type="file"
-                  accept="video/*"
-                  onChange={handleFileChange}
-                  disabled={submitting || !canUpload}
-                />
-                <p className="mt-1 text-xs text-gray-500">
-                  Durée max : {MAX_VIDEO_DURATION_SECONDS} secondes · Taille max : {MAX_VIDEO_SIZE_MB} Mo.
-                </p>
-                {previewUrl && (
-                  <div className="mt-4 w-full aspect-w-9 aspect-h-16 rounded-md shadow-sm overflow-hidden">
-                    <video
-                      src={previewUrl}
-                      controls
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                )}
+            {!canUploadMultipleVideos && !capabilities?.role?.isCreator && (
+              <p className="text-sm text-gray-600 mb-2">
+                Avec la version gratuite, vous pouvez envoyer une seule vidéo pour cet événement.
+              </p>
+            )}
+
+            {canUploadMultipleVideos && (
+              <p className="text-sm text-gray-600 mb-2">
+                Vous pouvez envoyer plusieurs vidéos pour cet événement.
+              </p>
+            )}
+
+            {latestVideoUrl ? (
+              <div className="w-full aspect-w-9 aspect-h-16 mb-3 rounded-md shadow-sm overflow-hidden">
+                <video controls src={latestVideoUrl} className="w-full h-full object-cover" />
               </div>
+            ) : (
+              <div className="text-sm text-gray-600">
+                Vidéo envoyée (URL indisponible pour le moment).
+              </div>
+            )}
+          </div>
+        )}
 
-              {/* 🟦 Barre de progression visible dès le début de l'upload */}
-              {uploadProgress > 0 && (
-                <div className="mt-2">
-                  <div className="w-full bg-gray-200 rounded-full h-3">
-                    <div
-                      className="bg-indigo-600 h-3 rounded-full transition-all duration-200 ease-out"
-                      style={{ width: `${uploadProgress}%` }}
-                    ></div>
-                  </div>
-                  <p className="mt-1 text-xs text-gray-500 text-right">
-                    {uploadProgress}%
-                  </p>
+        {!isNotAuthorized && canUpload && !isBlockedByCapabilities && (
+          <form onSubmit={handleSubmit} className="space-y-6 bg-white p-4 border rounded shadow">
+            <div>
+              <label className="block text-sm font-medium text-gray-700">Vidéo</label>
+              <input
+                type="file"
+                accept="video/*"
+                onChange={handleFileChange}
+                disabled={submitting || !canUpload}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Durée max : {MAX_VIDEO_DURATION_SECONDS} secondes · Taille max : {MAX_VIDEO_SIZE_MB} Mo.
+              </p>
+
+              {previewUrl && (
+                <div className="mt-3 rounded-md overflow-hidden border">
+                  <video controls src={previewUrl} className="w-full" />
                 </div>
               )}
+            </div>
 
-              <div>
-                <Button
-                  type="submit"
-                  loading={submitting}
-                  disabled={submitting || !selectedFile || !canUpload}
-                >
-                  Soumettre la vidéo
-                </Button>
+            {showProgressBar && (
+              <div className="w-full">
+                <div className="flex items-center justify-between mb-1 text-xs text-gray-600">
+                  <span>Envoi en cours...</span>
+                  <span>{isIndeterminateUpload ? "…" : `${uploadProgress}%`}</span>
+                </div>
+
+                <div className="w-full bg-gray-200 rounded h-2 overflow-hidden">
+                  <div className="bg-blue-600 h-2" style={{ width: `${uploadProgress}%` }} />
+                </div>
+
+                <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-gray-500">
+                  {uploadMeta?.loadedLabel && uploadMeta?.totalLabel && (
+                    <span>
+                      {uploadMeta.loadedLabel} / {uploadMeta.totalLabel}
+                    </span>
+                  )}
+                  {uploadMeta?.loadedLabel && !uploadMeta?.totalLabel && (
+                    <span>{uploadMeta.loadedLabel} envoyés</span>
+                  )}
+                  {speedLabel && <span>Vitesse : {speedLabel}</span>}
+                  {etaLabel && <span>Restant : {etaLabel}</span>}
+                </div>
+
+                {uploadProgress >= 99 && submitting && (
+                  <p className="mt-1 text-[11px] text-gray-500">
+                    Finalisation…
+                  </p>
+                )}
               </div>
-            </>
-          )}
-        </form>
+            )}
+
+            <div className="flex items-center gap-3">
+              <Button type="submit" disabled={submitting || !selectedFile}>
+                {submitting ? "Envoi..." : "Envoyer ma vidéo"}
+              </Button>
+
+              <Button type="button" variant="secondary" onClick={() => navigate(`/events/${eventId}/final`)}>
+                Voir la vidéo finale
+              </Button>
+            </div>
+          </form>
+        )}
+
+        {success && (
+          <div className="mt-6 bg-green-50 border border-green-200 text-green-800 px-4 py-3 rounded-md">
+            Vidéo envoyée avec succès. Redirection...
+          </div>
+        )}
       </div>
     </MainLayout>
   );

@@ -1,5 +1,6 @@
+// src/pages/DashboardPage.jsx
 import InstallAppButton from '../components/InstallAppButton';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import ActivityFeed from '../components/feed/ActivityFeed';
 import MainLayout from '../components/layout/MainLayout';
@@ -7,16 +8,124 @@ import Button from '../components/ui/Button';
 import Loading from '../components/ui/Loading';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
+import videoService from '../services/videoService';
 import { toast } from 'react-toastify';
+import supabase from '../lib/supabaseClient';
+
+const VISITED_KEY = 'gp_visited_events_v1';
+
+const safeParseJson = (raw, fallback) => {
+  try {
+    return raw ? JSON.parse(raw) : fallback;
+  } catch {
+    return fallback;
+  }
+};
+
+const loadVisited = () => {
+  const arr = safeParseJson(localStorage.getItem(VISITED_KEY), []);
+  if (!Array.isArray(arr)) return [];
+  // nettoyage minimal
+  return arr
+    .filter((x) => x && (x.public_code || x.event_id))
+    .map((x) => ({
+      event_id: x.event_id || null,
+      public_code: x.public_code || null,
+      title: x.title || 'Événement',
+      theme: x.theme || '',
+      visited_at: x.visited_at || null,
+      cover_url: x.cover_url || null,
+    }))
+    .slice(0, 20);
+};
+
+const saveVisited = (arr) => {
+  try {
+    localStorage.setItem(VISITED_KEY, JSON.stringify(arr.slice(0, 20)));
+  } catch {
+    // ignore
+  }
+};
+
+const removeVisitedByKey = (arr, item) => {
+  const key = item.event_id ? `id:${item.event_id}` : `code:${item.public_code}`;
+  return arr.filter((x) => {
+    const k = x.event_id ? `id:${x.event_id}` : `code:${x.public_code}`;
+    return k !== key;
+  });
+};
 
 const DashboardPage = () => {
   const { user, profile } = useAuth();
   const [events, setEvents] = useState([]);
-  const [eventStats, setEventStats] = useState({}); // { eventId: { totalInvitations, totalWithVideo, totalPending } }
+  const [eventStats, setEventStats] = useState({});
+  const [ownerNamesByUserId, setOwnerNamesByUserId] = useState({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [deletingEventId, setDeletingEventId] = useState(null);
-  const [showStats, setShowStats] = useState(false); // 👈 toggle affichage stats
+  const [showStats, setShowStats] = useState(false);
+
+  // ✅ NEW: map capabilities par event (source de vérité "déjà envoyé")
+  const [capsByEventId, setCapsByEventId] = useState({});
+  const [capsLoadingByEventId, setCapsLoadingByEventId] = useState({});
+
+  // ✅ FIX: refs pour éviter que l'effet "caps" reboucle à cause des deps objets
+  const capsByEventIdRef = useRef({});
+  const capsLoadingByEventIdRef = useRef({});
+
+  // ✅ NEW: événements visités (localStorage)
+  const [visitedEvents, setVisitedEvents] = useState([]);
+  const [joinLoadingKey, setJoinLoadingKey] = useState(null);
+
+  useEffect(() => {
+    capsByEventIdRef.current = capsByEventId;
+  }, [capsByEventId]);
+
+  useEffect(() => {
+    capsLoadingByEventIdRef.current = capsLoadingByEventId;
+  }, [capsLoadingByEventId]);
+
+  // ✅ charger les visités au chargement (et à chaque retour dashboard)
+  useEffect(() => {
+    setVisitedEvents(loadVisited());
+  }, []);
+
+  // Compte Premium = is_premium_account (avec expiration) ou ancien is_premium
+  const { isPremiumAccount, premiumAccountLabel } = useMemo(() => {
+    if (!profile) {
+      return {
+        isPremiumAccount: false,
+        premiumAccountLabel: '',
+      };
+    }
+
+    const now = new Date();
+    const rawExpires = profile.premium_account_expires_at;
+    const expiresDate = rawExpires ? new Date(rawExpires) : null;
+
+    const hasNewPremiumFlag =
+      profile.is_premium_account === true && expiresDate && expiresDate > now;
+
+    const hasLegacyPremiumFlag = profile.is_premium === true;
+
+    const effectivePremium = hasNewPremiumFlag || hasLegacyPremiumFlag;
+
+    let label = '';
+    if (hasNewPremiumFlag && expiresDate) {
+      const options = { year: 'numeric', month: 'short', day: 'numeric' };
+      label = `Compte Premium actif jusqu'au ${expiresDate.toLocaleDateString(
+        'fr-FR',
+        options,
+      )}`;
+    } else if (hasLegacyPremiumFlag) {
+      label = 'Compte Premium (mode historique activé).';
+    }
+
+    return {
+      isPremiumAccount: effectivePremium,
+      premiumAccountLabel: label,
+    };
+  }, [profile]);
 
   const fetchEvents = useCallback(async () => {
     if (!user) return;
@@ -58,17 +167,14 @@ const DashboardPage = () => {
     setDeletingEventId(eventId);
 
     try {
-      console.log(`Attempting to delete event ${eventId}`);
       await eventService.deleteEvent(eventId, user.id);
-
       setEvents((prevEvents) =>
         prevEvents.filter((event) => event.id !== eventId),
       );
       toast.success('Événement supprimé avec succès');
     } catch (error) {
       console.error('Error deleting event:', error);
-      const errorMessage = error.message || 'Erreur lors de la suppression';
-      toast.error(errorMessage);
+      toast.error(error.message || 'Erreur lors de la suppression');
     } finally {
       setDeletingEventId(null);
     }
@@ -77,14 +183,8 @@ const DashboardPage = () => {
   const statusMap = useMemo(
     () => ({
       open: { color: 'bg-yellow-100 text-yellow-800', label: 'Ouvert' },
-      ready: {
-        color: 'bg-blue-100 text-blue-800',
-        label: 'Prêt pour montage',
-      },
-      processing: {
-        color: 'bg-purple-100 text-purple-800',
-        label: 'En traitement',
-      },
+      ready: { color: 'bg-blue-100 text-blue-800', label: 'Prêt pour montage' },
+      processing: { color: 'bg-purple-100 text-purple-800', label: 'En traitement' },
       done: { color: 'bg-green-100 text-green-800', label: 'Terminé' },
       canceled: { color: 'bg-red-100 text-red-800', label: 'Annulé' },
     }),
@@ -114,7 +214,6 @@ const DashboardPage = () => {
 
     const now = new Date();
     const deadline = new Date(event.deadline);
-
     deadline.setHours(23, 59, 59, 999);
 
     if (event.status === 'done' || event.status === 'canceled') {
@@ -130,11 +229,49 @@ const DashboardPage = () => {
     );
   }, [events]);
 
-  // ✅ Charger les stats (invitations / vidéos / en attente) pour chaque event
+  // ✅ NEW: charger les noms des créateurs
+  useEffect(() => {
+    const loadOwnerNames = async () => {
+      if (!sortedEvents.length) return;
+
+      const userIds = Array.from(
+        new Set(
+          sortedEvents
+            .map((e) => e.user_id)
+            .filter(Boolean)
+            .filter((uid) => !ownerNamesByUserId[uid]),
+        ),
+      );
+
+      if (userIds.length === 0) return;
+
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, full_name')
+        .in('id', userIds);
+
+      if (error) {
+        console.error('Erreur chargement owner names:', error.message);
+        return;
+      }
+
+      const next = {};
+      (data || []).forEach((p) => {
+        next[p.id] = p.full_name || null;
+      });
+
+      setOwnerNamesByUserId((prev) => ({ ...prev, ...next }));
+    };
+
+    loadOwnerNames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortedEvents]);
+
+  // Charger les stats (invitations / vidéos / en attente)
   useEffect(() => {
     const loadStats = async () => {
       if (!sortedEvents.length) {
-        setEventStats({ });
+        setEventStats({});
         return;
       }
 
@@ -160,14 +297,69 @@ const DashboardPage = () => {
     loadStats();
   }, [sortedEvents]);
 
-  // ✅ Couleur dynamique de la barre en fonction du pourcentage
+  // ✅ NEW: Charger capabilities pour chaque event
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadCapsForEvents = async () => {
+      if (!user?.id) return;
+
+      if (!sortedEvents.length) {
+        setCapsByEventId((prev) => (Object.keys(prev).length ? {} : prev));
+        setCapsLoadingByEventId((prev) => (Object.keys(prev).length ? {} : prev));
+        return;
+      }
+
+      const currentCaps = capsByEventIdRef.current || {};
+      const currentLoading = capsLoadingByEventIdRef.current || {};
+
+      const toLoad = sortedEvents
+        .map((e) => e.id)
+        .filter((id) => id && !(id in currentCaps) && currentLoading[id] !== true);
+
+      if (toLoad.length === 0) return;
+
+      setCapsLoadingByEventId((prev) => {
+        const next = { ...prev };
+        toLoad.forEach((id) => (next[id] = true));
+        return next;
+      });
+
+      const results = await Promise.allSettled(
+        toLoad.map((eventId) => videoService.getEventCapabilities(eventId)),
+      );
+
+      if (cancelled) return;
+
+      setCapsByEventId((prev) => {
+        const next = { ...prev };
+        results.forEach((res, idx) => {
+          const eventId = toLoad[idx];
+          next[eventId] = res.status === 'fulfilled' ? res.value : null;
+        });
+        return next;
+      });
+
+      setCapsLoadingByEventId((prev) => {
+        const next = { ...prev };
+        toLoad.forEach((id) => (next[id] = false));
+        return next;
+      });
+    };
+
+    loadCapsForEvents();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, sortedEvents]);
+
   const getProgressColor = (pct) => {
     if (pct < 30) return 'bg-red-500';
     if (pct < 70) return 'bg-orange-400';
     return 'bg-emerald-500';
   };
 
-  // ✅ Statistiques globales (tous événements confondus)
   const globalStats = useMemo(() => {
     const result = {
       totalEvents: events.length,
@@ -201,7 +393,6 @@ const DashboardPage = () => {
     return result;
   }, [events, eventStats]);
 
-  // ✅ Statistiques par type d'événement (par thème)
   const statsByTheme = useMemo(() => {
     const map = {};
 
@@ -244,6 +435,65 @@ const DashboardPage = () => {
       .sort((a, b) => b.eventsCount - a.eventsCount);
   }, [events, eventStats]);
 
+  // ✅ NEW: calcul des "visités" qui ne sont pas dans le dashboard
+  const eventsIdSet = useMemo(() => new Set(events.map((e) => e.id)), [events]);
+
+  const missingVisited = useMemo(() => {
+    const list = visitedEvents || [];
+    return list
+      .filter((v) => {
+        if (v.event_id) return !eventsIdSet.has(v.event_id);
+        return true;
+      })
+      .slice(0, 6);
+  }, [visitedEvents, eventsIdSet]);
+
+  const handleJoinVisited = useCallback(
+    async (item) => {
+      if (!user?.id) {
+        toast.error('Tu dois être connecté.');
+        return;
+      }
+      if (!item?.public_code) {
+        toast.error("Impossible de rejoindre : code public manquant.");
+        return;
+      }
+
+      const key = item.event_id ? `id:${item.event_id}` : `code:${item.public_code}`;
+      setJoinLoadingKey(key);
+
+      try {
+        const { data, error } = await supabase.rpc('join_public_event', {
+          p_public_code: item.public_code,
+        });
+
+        if (error) {
+          console.error('join_public_event error:', error);
+          toast.error(error.message || "Impossible de rejoindre l'événement.");
+          return;
+        }
+
+        toast.success("Événement rejoint. Il est maintenant dans ton dashboard.");
+
+        await fetchEvents();
+
+        setVisitedEvents((prev) => {
+          const next = removeVisitedByKey(prev || [], item);
+          saveVisited(next);
+          return next;
+        });
+
+        void data;
+      } catch (e) {
+        console.error(e);
+        toast.error("Impossible de rejoindre l'événement.");
+      } finally {
+        setJoinLoadingKey(null);
+      }
+    },
+    [user?.id, fetchEvents],
+  );
+
   if (loading) {
     return (
       <MainLayout>
@@ -276,6 +526,11 @@ const DashboardPage = () => {
                 Gère tes projets vidéo, invite des participants et suis
                 l&apos;avancement de tes montages Grega Play.
               </p>
+              {premiumAccountLabel && (
+                <p className="mt-2 text-xs text-amber-700 bg-amber-50 inline-flex px-3 py-1 rounded-full border border-amber-200">
+                  {premiumAccountLabel}
+                </p>
+              )}
             </div>
 
             <div className="flex flex-col items-stretch md:items-end gap-3">
@@ -309,8 +564,8 @@ const DashboardPage = () => {
             </div>
           )}
 
-          {/* Bouton pour afficher/masquer les stats */}
-          {events.length > 0 && (
+          {/* Bouton stats → premium uniquement */}
+          {isPremiumAccount && events.length > 0 && (
             <div className="flex justify-end">
               <Button
                 type="button"
@@ -325,8 +580,8 @@ const DashboardPage = () => {
             </div>
           )}
 
-          {/* ✅ Statistiques globales de participation (affichées seulement si showStats = true) */}
-          {showStats && events.length > 0 && (
+          {/* Statistiques globales */}
+          {isPremiumAccount && showStats && events.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
                 <p className="text-xs text-gray-500">Événements</p>
@@ -383,8 +638,8 @@ const DashboardPage = () => {
             </div>
           )}
 
-          {/* ✅ Performance par type d'événement (affichée seulement si showStats = true) */}
-          {showStats && events.length > 0 && (
+          {/* Stats par type */}
+          {isPremiumAccount && showStats && events.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5">
               <div className="flex items-center justify-between mb-3">
                 <div>
@@ -392,8 +647,8 @@ const DashboardPage = () => {
                     Performance par type d&apos;événement
                   </h2>
                   <p className="text-xs text-gray-500 mt-1">
-                    Compare les types d&apos;événements (anniversaire, mariage,
-                    entreprise, etc.) pour voir où Grega Play performe le mieux.
+                    Compare les types d&apos;événements pour voir où Grega Play
+                    performe le mieux.
                   </p>
                 </div>
               </div>
@@ -477,28 +732,15 @@ const DashboardPage = () => {
                 </div>
 
                 <div className="px-5 py-4">
+                  {/* ... TON BLOC "Mes événements" inchangé ... */}
                   {events.length === 0 ? (
                     <div className="py-8 flex flex-col items-center text-center">
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-300"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M20 13V6a2 2 0 00-2-2H6a2 2 0 00-2 2v7m16 0v5a2 2 0 01-2 2H6a2 2 0 01-2-2v-5m16 0h-2.586a1 1 0 00-.707.293l-2.414 2.414a1 1 0 01-.707.293h-3.172a1 1 0 01-.707-.293l-2.414-2.414A1 1 0 006.586 13H4"
-                        />
-                      </svg>
                       <h3 className="mt-3 text-sm font-semibold text-gray-800">
                         Aucun événement pour l&apos;instant
                       </h3>
                       <p className="mt-1 text-sm text-gray-500 max-w-xs">
                         Crée ton premier événement pour collecter des vidéos et
-                        générer une belle surprise pour tes proches.
+                        générer une surprise.
                       </p>
                       <Link to="/create-event" className="mt-4">
                         <Button className="text-sm px-4 py-2">
@@ -512,6 +754,14 @@ const DashboardPage = () => {
                         const status = getStatusInfo(event.status);
                         const hasFinalVideo = !!event.final_video_url;
                         const isPublicEvent = event.is_public === true;
+
+                        const isOwner = event.user_id === user?.id;
+
+                        const ownerHasPremiumAccount =
+                          isPremiumAccount && isOwner;
+                        const isPremiumEvent = event.is_premium_event === true;
+                        const isEffectivePremiumEvent =
+                          isPremiumEvent || ownerHasPremiumAccount;
 
                         const publicUrl = event.public_code
                           ? `${window.location.origin}/e/${event.public_code}`
@@ -531,6 +781,7 @@ const DashboardPage = () => {
                           typeof stats?.totalWithVideo === 'number'
                             ? stats.totalWithVideo
                             : 0;
+
                         const progressPct =
                           totalInvitations > 0
                             ? Math.round(
@@ -540,75 +791,96 @@ const DashboardPage = () => {
 
                         const barColorClass = getProgressColor(progressPct);
 
+                        const creatorName =
+                          event.owner_name ||
+                          ownerNamesByUserId[event.user_id] ||
+                          'Un organisateur';
+
+                        const caps = capsByEventId[event.id] || null;
+                        const capsLoading = !!capsLoadingByEventId[event.id];
+
+                        const latestVideo = caps?.state?.latestVideo || null;
+                        const hasReachedUploadLimit = Boolean(
+                          caps?.state?.hasReachedUploadLimit,
+                        );
+
+                        const showAlreadySentBadge = !isOwner && !!latestVideo;
+                        const showLimitReachedBadge =
+                          !isOwner && hasReachedUploadLimit;
+
                         return (
                           <div
                             key={event.id}
                             className="rounded-2xl border border-gray-200 bg-white hover:bg-gray-50 shadow-sm px-4 py-4 transition-colors"
                           >
+                            {/* ... ton rendu de carte inchangé ... */}
                             <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                              {/* Infos principales */}
                               <div className="flex-1">
                                 <div className="flex items-start gap-3">
-                                  {/* Miniature */}
-<Link to={`/events/${event.id}`} className="flex-shrink-0">
-  {(() => {
-    const url = event.media_url || "";
-    const lower = url.toLowerCase();
+                                  <Link
+                                    to={`/events/${event.id}`}
+                                    className="flex-shrink-0"
+                                  >
+                                    {(() => {
+                                      const url = event.media_url || '';
+                                      const lower = url.toLowerCase();
 
-    // IMAGE
-    if (lower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
-      return (
-        <img
-          src={url}
-          alt="Visuel événement"
-          className="w-20 h-16 object-cover rounded-md border border-gray-200"
-        />
-      );
-    }
+                                      if (lower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) {
+                                        return (
+                                          <img
+                                            src={url}
+                                            alt="Visuel événement"
+                                            className="w-20 h-16 object-cover rounded-md border border-gray-200"
+                                          />
+                                        );
+                                      }
 
-    // VIDÉO -> thumbnail par défaut
-    if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
-      return (
-        <img
-          src="/default-video-thumbnail.jpg"
-          alt="Miniature vidéo"
-          className="w-20 h-16 object-cover rounded-md border border-gray-200"
-        />
-      );
-    }
+                                      if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+                                        return (
+                                          <img
+                                            src="/default-video-thumbnail.jpg"
+                                            alt="Miniature vidéo"
+                                            className="w-20 h-16 object-cover rounded-md border border-gray-200"
+                                          />
+                                        );
+                                      }
 
-    // AUDIO -> autre thumbnail simple
-    if (lower.match(/\.(mp3|wav|ogg)$/i)) {
-      return (
-        <img
-          src="/default-audio-thumbnail.jpg"
-          alt="Miniature audio"
-          className="w-20 h-16 object-cover rounded-md border border-gray-200"
-        />
-      );
-    }
+                                      if (lower.match(/\.(mp3|wav|ogg)$/i)) {
+                                        return (
+                                          <img
+                                            src="/default-audio-thumbnail.jpg"
+                                            alt="Miniature audio"
+                                            className="w-20 h-16 object-cover rounded-md border border-gray-200"
+                                          />
+                                        );
+                                      }
 
-    // RIEN -> placeholder par défaut
-    return (
-      <img
-        src="/default-placeholder.jpg"
-        alt="Aucun visuel"
-        className="w-20 h-16 object-cover rounded-md border border-gray-200"
-      />
-    );
-  })()}
-</Link>
-
+                                      return (
+                                        <img
+                                          src="/default-placeholder.jpg"
+                                          alt="Aucun visuel"
+                                          className="w-20 h-16 object-cover rounded-md border border-gray-200"
+                                        />
+                                      );
+                                    })()}
+                                  </Link>
 
                                   <div className="flex-1">
                                     <h3 className="text-sm font-semibold text-gray-900">
                                       {event.title}
                                     </h3>
+
                                     <p className="text-xs text-gray-500">
-                                      Créé le {formatDate(event.created_at)}
+                                      Créé par{' '}
+                                      <span className="font-medium text-gray-700">
+                                        {creatorName}
+                                      </span>
                                     </p>
 
-                                    {/* Statuts */}
+                                    <p className="text-xs text-gray-500">
+                                      le {formatDate(event.created_at)}
+                                    </p>
+
                                     <div className="mt-2 flex flex-wrap items-center gap-2">
                                       <span
                                         className={`inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full ${status.color}`}
@@ -616,9 +888,8 @@ const DashboardPage = () => {
                                         {status.label}
                                       </span>
 
-                                      {/* Public / Privé */}
                                       <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-700">
-                                        {isPublicEvent ? "Public" : "Privé"}
+                                        {isPublicEvent ? 'Public' : 'Privé'}
                                       </span>
 
                                       {isEventExpired(event) && (
@@ -633,15 +904,37 @@ const DashboardPage = () => {
                                         </span>
                                       )}
 
-                                      {/* Badge "en attente de vidéo" */}
-                                      {pendingCount !== null && (
+                                      {isEffectivePremiumEvent && (
+                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-violet-100 text-violet-800">
+                                          Premium
+                                        </span>
+                                      )}
+
+                                      {capsLoading && !isOwner && (
+                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-600">
+                                          Vérification...
+                                        </span>
+                                      )}
+
+                                      {showAlreadySentBadge && (
+                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                          Vidéo envoyée
+                                        </span>
+                                      )}
+
+                                      {showLimitReachedBadge && (
+                                        <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200">
+                                          Limite atteinte
+                                        </span>
+                                      )}
+
+                                      {isOwner && pendingCount !== null && (
                                         <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-orange-50 text-orange-700">
                                           {pendingCount} en attente de vidéo
                                         </span>
                                       )}
                                     </div>
 
-                                    {/* ✅ Barre de progression vidéos reçues */}
                                     {totalInvitations > 0 && (
                                       <div className="mt-3">
                                         <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
@@ -654,16 +947,13 @@ const DashboardPage = () => {
                                         <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
                                           <div
                                             className={`h-2 rounded-full ${barColorClass} transition-all`}
-                                            style={{
-                                              width: `${progressPct}%`,
-                                            }}
+                                            style={{ width: `${progressPct}%` }}
                                           />
                                         </div>
                                       </div>
                                     )}
 
-                                    {/* Lien de partage */}
-                                    {event.public_code && (
+                                    {isOwner && event.public_code && (
                                       <div className="mt-3">
                                         <label className="block text-[11px] font-medium text-gray-500 mb-1">
                                           Lien de partage
@@ -718,16 +1008,39 @@ const DashboardPage = () => {
                                 </div>
                               </div>
 
-                              {/* Actions */}
                               <div className="flex sm:flex-col gap-2 sm:items-end">
-                                {event.user_id === user.id && (
-                                  <Link
-                                    to={`/events/${event.id}/manage-participants`}
-                                    className="inline-flex items-center px-3 py-1.5 border border-emerald-600 text-emerald-600 hover:bg-emerald-50 text-xs font-medium rounded-lg"
-                                  >
-                                    Inviter
-                                  </Link>
+                                {isOwner && (
+                                  <>
+                                    <Link
+                                      to={`/events/${event.id}/manage-participants`}
+                                      className="inline-flex items-center px-3 py-1.5 border border-emerald-600 text-emerald-600 hover:bg-emerald-50 text-xs font-medium rounded-lg"
+                                    >
+                                      Inviter
+                                    </Link>
+
+                                    <button
+                                      onClick={() => handleDeleteEvent(event.id)}
+                                      disabled={deletingEventId === event.id}
+                                      className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-medium rounded-lg disabled:opacity-60"
+                                    >
+                                      {deletingEventId === event.id
+                                        ? 'Suppression...'
+                                        : 'Supprimer'}
+                                    </button>
+                                  </>
                                 )}
+
+                                {!isOwner &&
+                                  caps &&
+                                  caps?.actions?.canUploadVideo === true &&
+                                  caps?.state?.hasReachedUploadLimit === false && (
+                                    <Link
+                                      to={`/events/${event.id}/submit`}
+                                      className="inline-flex items-center px-3 py-1.5 border border-indigo-600 text-indigo-600 hover:bg-indigo-50 text-xs font-medium rounded-lg"
+                                    >
+                                      Envoyer ma vidéo
+                                    </Link>
+                                  )}
 
                                 <Link
                                   to={`/events/${event.id}`}
@@ -735,16 +1048,6 @@ const DashboardPage = () => {
                                 >
                                   Voir
                                 </Link>
-
-                                <button
-                                  onClick={() => handleDeleteEvent(event.id)}
-                                  disabled={deletingEventId === event.id}
-                                  className="inline-flex items-center px-3 py-1.5 bg-red-50 text-red-600 hover:bg-red-100 text-xs font-medium rounded-lg disabled:opacity-60"
-                                >
-                                  {deletingEventId === event.id
-                                    ? 'Suppression...'
-                                    : '🗑️ Supprimer'}
-                                </button>
                               </div>
                             </div>
                           </div>
@@ -754,18 +1057,91 @@ const DashboardPage = () => {
                   )}
                 </div>
               </div>
+
+              {/* ✅ DÉPLACÉ ICI : Encadré "Événements visités" APRÈS "Mes événements" */}
+              {missingVisited.length > 0 && (
+                <div className="mt-6 bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <h2 className="text-sm font-semibold text-gray-900">
+                        Événements visités
+                      </h2>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Tu as visité ces événements publics. Tu peux les ouvrir, ou décider de les rejoindre pour qu’ils apparaissent dans ton dashboard.
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setVisitedEvents([]);
+                        saveVisited([]);
+                        toast.info('Liste des événements visités vidée.');
+                      }}
+                      className="text-[11px] font-medium text-gray-500 hover:text-gray-700"
+                    >
+                      Vider
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {missingVisited.map((v) => {
+                      const key = v.event_id ? `id:${v.event_id}` : `code:${v.public_code}`;
+                      const joining = joinLoadingKey === key;
+
+                      const openUrl = v.public_code
+                        ? `/e/${v.public_code}`
+                        : v.event_id
+                        ? `/events/${v.event_id}`
+                        : '#';
+
+                      return (
+                        <div
+                          key={key}
+                          className="rounded-xl border border-gray-200 bg-gray-50/40 px-4 py-3"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-sm font-semibold text-gray-900 truncate">
+                                {v.title || 'Événement'}
+                              </p>
+                              <p className="text-[11px] text-gray-500">
+                                {v.theme ? v.theme : 'Événement public'}
+                                {v.visited_at ? ` • visité le ${new Date(v.visited_at).toLocaleDateString('fr-FR')}` : ''}
+                              </p>
+                            </div>
+
+                            <div className="flex flex-col sm:flex-row gap-2">
+                              <Link
+                                to={openUrl}
+                                className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-[11px] font-medium text-gray-700 hover:bg-gray-50"
+                              >
+                                Ouvrir
+                              </Link>
+
+                              <button
+                                type="button"
+                                onClick={() => handleJoinVisited(v)}
+                                disabled={joining}
+                                className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg bg-emerald-600 text-white text-[11px] font-semibold hover:bg-emerald-700 disabled:opacity-60"
+                              >
+                                {joining ? 'Rejoindre...' : 'Rejoindre'}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* Colonne latérale : activité récente */}
             <div>
               <div className="bg-white rounded-2xl shadow-sm border border-gray-200 h-full">
                 <div className="px-5 pt-5 pb-3 border-b border-gray-100">
                   <h2 className="text-sm font-semibold text-gray-900">
                     Activité récente
                   </h2>
-                  <p className="text-xs text-gray-500 mt-1">
-                    Les dernières actions sur tes événements.
-                  </p>
                 </div>
                 <div className="px-3 py-3">
                   {sortedEvents.length > 0 ? (
@@ -780,6 +1156,7 @@ const DashboardPage = () => {
               </div>
             </div>
           </div>
+
         </div>
       </div>
     </MainLayout>

@@ -1,97 +1,76 @@
-// EventDetailsPage.jsx
 import React, { useEffect, useState, useCallback, useMemo } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import MainLayout from "../components/layout/MainLayout";
 import Button from "../components/ui/Button";
 import Loading from "../components/ui/Loading";
 import { useAuth } from "../context/AuthContext";
 import eventService from "../services/eventService";
-import videoService from "../services/videoService";
 import { toast } from "react-toastify";
-import supabase from "../lib/supabaseClient"; // pour enable_notifications
+import supabase from "../lib/supabaseClient";
+import QRCode from "react-qr-code";
+import { setReturnTo, getReturnTo } from "../utils/returnTo";
 
 const EventDetailsPage = () => {
   const { eventId } = useParams();
   const id = eventId;
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { user, profile } = useAuth();
+
   const [event, setEvent] = useState(null);
+  const [ownerName, setOwnerName] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [generating, setGenerating] = useState(false);
-
-  const [updatingVisibility, setUpdatingVisibility] = useState(false);
-
-  // Switch notifications
-  const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [updatingNotifications, setUpdatingNotifications] = useState(false);
-
-  // Édition de la date limite
-  const [newDeadline, setNewDeadline] = useState("");
   const [updatingDeadline, setUpdatingDeadline] = useState(false);
+  const [showDeadlineForm, setShowDeadlineForm] = useState(false);
+  const [newDeadline, setNewDeadline] = useState("");
+  const [updatingVisibility, setUpdatingVisibility] = useState(false);
+  const [notificationsEnabled, setNotificationsEnabled] = useState(false);
 
-  const statusMap = useMemo(
-    () => ({
-      open: { color: "bg-yellow-100 text-yellow-800", label: "Ouvert" },
-      ready: { color: "bg-blue-100 text-blue-800", label: "Prêt pour montage" },
-      processing: {
-        color: "bg-purple-100 text-purple-800",
-        label: "En traitement",
-      },
-      done: { color: "bg-green-100 text-green-800", label: "Terminé" },
-      canceled: { color: "bg-red-100 text-red-800", label: "Annulé" },
-    }),
-    []
-  );
-
-  const getStatusInfo = useCallback(
-    (status) =>
-      statusMap[status] || {
-        color: "bg-gray-100 text-gray-800",
-        label: "Inconnu",
-      },
-    [statusMap]
-  );
-
-  const formatDate = useCallback((dateString) => {
-    if (!dateString) return "";
-    const options = { year: "numeric", month: "short", day: "numeric" };
-    return new Date(dateString).toLocaleDateString("fr-FR", options);
-  }, []);
-
-  const isEventExpired = useCallback((event) => {
-    if (!event?.deadline) return false;
+  const isPremiumAccount = useMemo(() => {
+    if (!profile) return false;
 
     const now = new Date();
-    const deadline = new Date(event.deadline);
+    const rawExpires = profile.premium_account_expires_at;
+    const expiresDate = rawExpires ? new Date(rawExpires) : null;
 
-    // On considère l'événement actif jusqu'à la fin de la journée de deadline
-    deadline.setHours(23, 59, 59, 999);
+    const hasNewPremiumFlag =
+      profile.is_premium_account === true && expiresDate && expiresDate > now;
 
-    if (event.status === "done" || event.status === "canceled") {
-      return false;
-    }
+    const hasLegacyPremiumFlag = profile.is_premium === true;
 
-    return deadline < now;
-  }, []);
+    return hasNewPremiumFlag || hasLegacyPremiumFlag;
+  }, [profile]);
 
-  // Récupération de l'événement (toutes colonnes, y compris enable_notifications)
-  const fetchEvent = useCallback(async () => {
+  const loadEvent = useCallback(async () => {
     try {
-      setLoading(true);
-      const data = await eventService.getEvent(id);
-      console.log("EVENT DETAIL:", data);
+      const data = await eventService.getEventDetails(id);
       setEvent(data);
-      // initialise l'état du switch selon enable_notifications
-      setNotificationsEnabled(data?.enable_notifications !== false);
-      // initialise le champ date (format YYYY-MM-DD pour l'input)
-      if (data?.deadline) {
-        const d = new Date(data.deadline);
-        const iso = d.toISOString().split("T")[0];
-        setNewDeadline(iso);
-      } else {
-        setNewDeadline("");
+
+      setNewDeadline(data.deadline ? data.deadline.split("T")[0] : "");
+
+      if (typeof data.enable_notifications === "boolean") {
+        setNotificationsEnabled(data.enable_notifications);
       }
-    } catch (err) {
-      console.error("Erreur récupération événement:", err);
+
+      if (data?.owner_name) {
+        setOwnerName(data.owner_name);
+      } else if (data?.user_id) {
+        const { data: ownerProfile, error } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", data.user_id)
+          .maybeSingle();
+
+        if (error) {
+          console.error("Erreur chargement owner profile :", error.message);
+          setOwnerName(null);
+        } else {
+          setOwnerName(ownerProfile?.full_name || null);
+        }
+      } else {
+        setOwnerName(null);
+      }
+    } catch (error) {
+      console.error("Erreur récupération événement:", error);
       toast.error("Impossible de charger l’événement.");
     } finally {
       setLoading(false);
@@ -99,82 +78,191 @@ const EventDetailsPage = () => {
   }, [id]);
 
   useEffect(() => {
-    fetchEvent();
-  }, [fetchEvent]);
+    if (!id) return;
+    loadEvent();
+  }, [id, loadEvent]);
 
-  // gérer le toggle des notifications pour cet événement
-  const handleToggleNotifications = async () => {
+  const isEventExpired = useCallback((eventToCheck) => {
+    if (!eventToCheck?.deadline) return false;
+
+    const now = new Date();
+    const deadline = new Date(eventToCheck.deadline);
+    deadline.setHours(23, 59, 59, 999);
+
+    if (eventToCheck.status === "done" || eventToCheck.status === "canceled") {
+      return false;
+    }
+
+    return deadline < now;
+  }, []);
+
+  const getStatusInfo = useCallback((status) => {
+    switch (status) {
+      case "done":
+        return {
+          label: "Vidéo finale générée",
+          color: "bg-purple-50 text-purple-700 border border-purple-200",
+        };
+      case "canceled":
+        return {
+          label: "Événement annulé",
+          color: "bg-gray-50 text-gray-600 border border-gray-200",
+        };
+      default:
+        return {
+          label: "En cours",
+          color: "bg-emerald-50 text-emerald-700 border border-emerald-200",
+        };
+    }
+  }, []);
+
+  // ✅ NOUVEAU : auto-sauvegarde du contexte si event public et user non connecté
+  useEffect(() => {
     if (!event) return;
+    if (user) return;
+    if (event.is_public !== true) return;
 
-    const newValue = !notificationsEnabled;
-    setUpdatingNotifications(true);
+    const already = getReturnTo();
+    if (already) return;
 
+    const returnUrl =
+      window.location.pathname + window.location.search + window.location.hash;
+
+    setReturnTo(returnUrl);
+  }, [event, user]);
+
+  const saveReturnToHere = useCallback(() => {
+    const returnUrl =
+      window.location.pathname + window.location.search + window.location.hash;
+    setReturnTo(returnUrl);
+  }, []);
+
+  const goLogin = useCallback(() => {
+  saveReturnToHere();
+  const returnUrl =
+    window.location.pathname + window.location.search + window.location.hash;
+  navigate(`/login?returnTo=${encodeURIComponent(returnUrl)}`);
+}, [navigate, saveReturnToHere]);
+
+const goRegister = useCallback(() => {
+  saveReturnToHere();
+  const returnUrl =
+    window.location.pathname + window.location.search + window.location.hash;
+  navigate(`/register?returnTo=${encodeURIComponent(returnUrl)}`);
+}, [navigate, saveReturnToHere]);
+
+  const handleUpdateDeadline = async (e) => {
+    e.preventDefault();
+    if (!event || !user) return;
+
+    if (!newDeadline) {
+      toast.error("Merci de choisir une nouvelle date limite.");
+      return;
+    }
+
+    setUpdatingDeadline(true);
     try {
-      const { data, error } = await supabase
-        .from("events")
-        .update({ enable_notifications: newValue })
-        .eq("id", event.id)
-        .select()
-        .single();
-
-      if (error) {
-        console.error("Erreur update enable_notifications:", error);
-        toast.error("Impossible de mettre à jour les notifications");
-        setUpdatingNotifications(false);
-        return;
-      }
-
-      setNotificationsEnabled(newValue);
-      setEvent(data);
-
-      toast.success(
-        newValue
-          ? "Notifications activées pour cet événement"
-          : "Notifications désactivées pour cet événement"
+      const updatedEvent = await eventService.updateEventDeadline(
+        event.id,
+        newDeadline
       );
-    } catch (err) {
-      console.error("Erreur inattendue update notifications:", err);
-      toast.error("Erreur lors de la mise à jour des notifications");
+      setEvent(updatedEvent);
+      setShowDeadlineForm(false);
+      toast.success("Date limite mise à jour avec succès.");
+    } catch (error) {
+      console.error("Erreur mise à jour deadline:", error);
+      toast.error(
+        "Impossible de mettre à jour la date limite. Réessaie plus tard."
+      );
     } finally {
-      setUpdatingNotifications(false);
+      setUpdatingDeadline(false);
     }
   };
 
-
   const handleToggleVisibility = async () => {
-    if (!event) return;
+    if (!event || !user) return;
 
-    const newValue = !isPublicEvent;
     setUpdatingVisibility(true);
-
     try {
       const { data, error } = await supabase
         .from("events")
-        .update({ is_public: newValue })
+        .update({ is_public: !event.is_public })
         .eq("id", event.id)
         .select()
         .single();
 
       if (error) {
-        console.error("Erreur update is_public:", error);
-        toast.error("Impossible de changer la visibilité");
-        setUpdatingVisibility(false);
-        return;
+        console.error("Erreur changement visibilité:", error);
+        toast.error("Impossible de changer la visibilité de l'événement.");
+      } else {
+        setEvent(data);
+        toast.success("Visibilité de l'événement mise à jour.");
       }
-
-      setEvent(data);
-      toast.success(
-        newValue
-          ? "L'événement est maintenant public : toute personne avec le lien peut envoyer une vidéo."
-          : "L'événement est maintenant privé : seules les personnes invitées par email peuvent envoyer une vidéo."
-      );
-    } catch (err) {
-      console.error("Erreur inattendue update visibilité:", err);
+    } catch (error) {
+      console.error("Erreur toggle visibility:", error);
       toast.error("Erreur lors du changement de visibilité");
     } finally {
       setUpdatingVisibility(false);
     }
   };
+
+  const handleToggleNotifications = async () => {
+    if (!event || !user) return;
+    if (event.user_id !== user.id) {
+      toast.error(
+        "Seul le créateur de l'événement peut changer les notifications."
+      );
+      return;
+    }
+
+    const newValue = !notificationsEnabled;
+
+    try {
+      setNotificationsEnabled(newValue);
+
+      const { error } = await supabase
+        .from("events")
+        .update({ enable_notifications: newValue })
+        .eq("id", event.id);
+
+      if (error) {
+        console.error("Erreur update enable_notifications:", error);
+        setNotificationsEnabled(!newValue);
+        toast.error(
+          "Impossible de mettre à jour les notifications. Réessaie plus tard."
+        );
+        return;
+      }
+
+      if (newValue) {
+        toast.success("Notifications activées pour cet événement.");
+      } else {
+        toast.info("Notifications désactivées pour cet événement.");
+      }
+    } catch (err) {
+      console.error("Erreur toggle notifications:", err);
+      setNotificationsEnabled(!newValue);
+      toast.error(
+        "Une erreur est survenue lors de la mise à jour des notifications."
+      );
+    }
+  };
+
+  const participantsCount = useMemo(() => {
+    return event?.participants_count ?? null;
+  }, [event]);
+
+  const formattedDeadline = useMemo(() => {
+    if (!event?.deadline) return "Non définie";
+
+    const d = new Date(event.deadline);
+    return d.toLocaleDateString("fr-FR", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }, [event]);
+
   if (loading) {
     return (
       <MainLayout>
@@ -200,21 +288,36 @@ const EventDetailsPage = () => {
   }
 
   const isOwner = event.user_id === user?.id;
+  const ownerHasPremiumAccount = isOwner && isPremiumAccount;
   const statusInfo = getStatusInfo(event.status);
   const expired = isEventExpired(event);
   const isPublicEvent = event.is_public === true;
 
+  const now = new Date();
+  const premiumEventExpiresAt = event.premium_event_expires_at
+    ? new Date(event.premium_event_expires_at)
+    : null;
+
+  const isEventBoostActive =
+    event.is_premium_event === true &&
+    premiumEventExpiresAt &&
+    premiumEventExpiresAt > now;
+
+  const isEffectivePremiumEvent = isEventBoostActive || ownerHasPremiumAccount;
+
+  const basePublicUrl =
+    import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+
   const publicUrl = event.public_code
-    ? `${window.location.origin}/e/${event.public_code}`
+    ? `${basePublicUrl}/e/${event.public_code}`
     : "";
 
-  // Affichage du média selon le type
   const renderMedia = (url) => {
     if (!url) return null;
 
     const lower = url.toLowerCase();
 
-    if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) {
+    if (lower.match(/\.(mp4|mov|webm|mkv)$/i)) {
       return (
         <video
           src={url}
@@ -225,7 +328,23 @@ const EventDetailsPage = () => {
     }
 
     if (lower.match(/\.(mp3|wav|ogg)$/i)) {
-      return <audio src={url} controls className="w-full mt-4" />;
+      return (
+        <audio
+          src={url}
+          controls
+          className="w-full rounded-xl border border-gray-200 mt-4"
+        />
+      );
+    }
+
+    if (lower.match(/\.(png|jpe?g|gif|webp)$/i)) {
+      return (
+        <img
+          src={url}
+          alt="Illustration de l'événement"
+          className="w-full rounded-xl border border-gray-200 mt-4 object-cover"
+        />
+      );
     }
 
     return (
@@ -241,141 +360,119 @@ const EventDetailsPage = () => {
     <MainLayout>
       <div className="min-h-[calc(100vh-80px)] bg-gray-50">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-          {/* En-tête */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">
-                {event.title}
+              <h1 className="text-xl font-semibold text-gray-900">
+                {event.title || "Événement sans titre"}
               </h1>
-              {event.theme && (
-                <p className="mt-1 text-sm text-indigo-600 font-medium">
-                  {event.theme}
-                </p>
-              )}
-              <p className="mt-1 text-xs text-gray-500">
-                Créé le {formatDate(event.created_at)}
-                {event.deadline && (
-                  <> • Date limite vidéos : {formatDate(event.deadline)}</>
-                )}
+              <p className="text-xs text-gray-500 mt-1">
+                Créé par{" "}
+                <span className="font-medium">
+                  {ownerName || "Un organisateur"}
+                </span>
               </p>
-
-              {/* Bloc modification de la date limite (uniquement propriétaire, avant vidéo finale) */}
-              {isOwner &&
-                !event.final_video_path &&
-                event.status !== "done" && (
-                  <div className="mt-3 bg-gray-50 border border-gray-200 rounded-lg p-4">
-                    <label className="text-xs font-medium text-gray-700">
-                      Modifier la date limite
-                    </label>
-
-                    <input
-                      type="date"
-                      className="mt-2 w-full text-sm border border-gray-300 rounded-md px-3 py-2"
-                      value={newDeadline}
-                      onChange={(e) => setNewDeadline(e.target.value)}
-                      min={new Date().toISOString().split("T")[0]} // pas de date passée
-                    />
-
-                    <button
-                      disabled={!newDeadline || updatingDeadline}
-                      onClick={async () => {
-                        // Sécurité côté front : on re-vérifie qu'il n'y a pas de vidéo finale
-                        if (event.final_video_path || event.status === "done") {
-                          toast.error(
-                            "Impossible de modifier la date limite après génération de la vidéo finale."
-                          );
-                          return;
-                        }
-
-                        setUpdatingDeadline(true);
-
-                        try {
-                          const updated = await eventService.updateDeadline(
-                            event.id,
-                            newDeadline
-                          );
-
-                          setEvent(updated);
-                          toast.success(
-                            "Date limite mise à jour avec succès !"
-                          );
-                        } catch (err) {
-                          console.error("Erreur updateDeadline:", err);
-                          toast.error(
-                            err.message || "Erreur mise à jour date limite"
-                          );
-                        } finally {
-                          setUpdatingDeadline(false);
-                        }
-                      }}
-                      className="mt-3 w-full px-3 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50"
-                    >
-                      {updatingDeadline
-                        ? "Mise à jour..."
-                        : "Mettre à jour la date limite"}
-                    </button>
-                  </div>
-                )}
             </div>
 
-            <div className="flex flex-col items-end gap-2">
-              {/* Switch notifications (visible uniquement pour le créateur) */}
+            <div className="flex flex-wrap gap-2 justify-start sm:justify-end">
               {isOwner && (
+                <Link
+                  to={`/events/${event.id}/manage-participants`}
+                  className="w-full sm:w-auto"
+                >
+                  <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 inline-flex justify-center">
+                    Inviter des participants
+                  </Button>
+                </Link>
+              )}
+
+              {!user ? (
                 <>
+                  <Button
+                    onClick={goLogin}
+                    className="w-full sm:w-auto text-sm font-semibold py-2.5 inline-flex justify-center"
+                  >
+                    Se connecter pour participer
+                  </Button>
+                  <Button
+                    onClick={goRegister}
+                    className="w-full sm:w-auto text-sm font-medium py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                  >
+                    S’inscrire
+                  </Button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to={`/submit-video/${event.id}`}
+                    className="w-full sm:w-auto"
+                  >
+                    <Button className="w-full sm:w-auto text-sm font-medium py-2.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200">
+                      Soumettre une vidéo
+                    </Button>
+                  </Link>
+
+                  <Link
+                    to={`/events/${event.id}/final`}
+                    className="w-full sm:w-auto"
+                  >
+                    <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 bg-purple-600 hover:bg-purple-700">
+                      Voir les vidéos & générer le montage
+                    </Button>
+                  </Link>
+                </>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+                <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-700">
+                  {event.theme || "Type d'événement non précisé"}
+                </span>
+                <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-700">
+                  Date limite :{" "}
+                  <span className="font-semibold ml-1">
+                    {formattedDeadline}
+                  </span>
+                </span>
+                {participantsCount !== null && (
+                  <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-700">
+                    Invités :{" "}
+                    <span className="font-semibold ml-1">
+                      {participantsCount}
+                    </span>
+                  </span>
+                )}
+              </div>
+
+              {isOwner && (
+                <div className="flex flex-wrap items-center gap-2 mt-1">
                   <button
                     type="button"
-                    onClick={handleToggleNotifications}
-                    disabled={updatingNotifications}
-                    className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[11px] font-medium
-                      ${
-                        notificationsEnabled
-                          ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                          : "bg-gray-50 text-gray-600 border-gray-200"
-                      }`}
+                    onClick={() => setShowDeadlineForm((prev) => !prev)}
+                    className="inline-flex items-center px-3 py-1 rounded-full border border-gray-200 bg-gray-50 text-[11px] font-medium text-gray-700 hover:bg-gray-100"
                   >
-                    <span
-                      className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
-                        ${notificationsEnabled ? "bg-emerald-500" : "bg-gray-300"}`}
-                    >
-                      <span
-                        className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
-                          ${notificationsEnabled ? "translate-x-3" : "translate-x-1"}`}
-                      />
-                    </span>
-                    {updatingNotifications
-                      ? "Mise à jour..."
-                      : notificationsEnabled
-                      ? "Notifications activées"
-                      : "Notifications désactivées"}
+                    Modifier la date limite
                   </button>
 
                   <button
                     type="button"
                     onClick={handleToggleVisibility}
                     disabled={updatingVisibility}
-                    className={`inline-flex items-center px-3 py-1.5 rounded-full border text-[11px] font-medium mt-1
-                      ${
-                        isPublicEvent
-                          ? "bg-sky-50 text-sky-700 border-sky-200"
-                          : "bg-gray-50 text-gray-600 border-gray-200"
-                      }`}
+                    className={`inline-flex items-center px-3 py-1 rounded-full border text-[11px] font-medium ${
+                      updatingVisibility
+                        ? "bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed"
+                        : "bg-white text-gray-700 hover:bg-gray-50 border-gray-200"
+                    }`}
                   >
-                    <span
-                      className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
-                        ${isPublicEvent ? "bg-sky-500" : "bg-gray-300"}`}
-                    >
-                      <span
-                        className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
-                          ${isPublicEvent ? "translate-x-3" : "translate-x-1"}`}
-                      />
-                    </span>
                     {updatingVisibility
                       ? "Changement de visibilité..."
                       : isPublicEvent
                       ? "Événement public"
                       : "Événement privé"}
                   </button>
-                </>
+                </div>
               )}
 
               <div className="flex flex-wrap justify-end gap-2">
@@ -389,11 +486,18 @@ const EventDetailsPage = () => {
                   {isPublicEvent ? "Public" : "Privé"}
                 </span>
 
+                {isEffectivePremiumEvent && (
+                  <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-purple-100 text-purple-800">
+                    Événement Premium
+                  </span>
+                )}
+
                 {expired && (
                   <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-red-100 text-red-800">
                     Expiré
                   </span>
                 )}
+
                 {event.final_video_path && (
                   <span className="inline-flex px-3 py-1 text-[11px] font-medium rounded-full bg-purple-100 text-purple-800">
                     Vidéo finale prête
@@ -401,138 +505,181 @@ const EventDetailsPage = () => {
                 )}
               </div>
             </div>
+
+            {isOwner && (
+              <button
+                type="button"
+                onClick={handleToggleNotifications}
+                className={`inline-flex items-center px-3 py-2 rounded-xl text-[11px] font-medium border ${
+                  notificationsEnabled
+                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                    : "bg-gray-50 text-gray-600 border-gray-200"
+                }`}
+              >
+                <span
+                  className={`mr-2 inline-flex h-4 w-7 items-center rounded-full transition
+                        ${notificationsEnabled ? "bg-emerald-500" : "bg-gray-300"}`}
+                >
+                  <span
+                    className={`h-3 w-3 bg-white rounded-full shadow transform transition-transform
+                          ${
+                            notificationsEnabled
+                              ? "translate-x-3"
+                              : "translate-x-1"
+                          }`}
+                  />
+                </span>
+                {notificationsEnabled
+                  ? "Notifications activées"
+                  : "Notifications désactivées"}
+              </button>
+            )}
           </div>
 
-          {/* Carte principale : infos événement + média + partage */}
+          {isOwner && showDeadlineForm && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 py-4">
+              <form
+                onSubmit={handleUpdateDeadline}
+                className="flex flex-col sm:flex-row gap-3 sm:items-center"
+              >
+                <div className="flex-1">
+                  <label
+                    htmlFor="newDeadline"
+                    className="block text-xs font-medium text-gray-700 mb-1"
+                  >
+                    Nouvelle date limite pour recevoir les vidéos
+                  </label>
+                  <input
+                    id="newDeadline"
+                    type="date"
+                    value={newDeadline}
+                    onChange={(e) => setNewDeadline(e.target.value)}
+                    className="block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:ring-purple-500 focus:border-purple-500"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    type="submit"
+                    disabled={updatingDeadline}
+                    className="text-sm font-semibold py-2.5"
+                  >
+                    {updatingDeadline
+                      ? "Mise à jour..."
+                      : "Enregistrer la nouvelle date"}
+                  </Button>
+                  <button
+                    type="button"
+                    onClick={() => setShowDeadlineForm(false)}
+                    className="text-sm text-gray-500 hover:text-gray-700"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
           <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 space-y-5">
-            {/* Description */}
             {event.description && (
               <p className="text-sm text-gray-700 leading-relaxed">
                 {event.description}
               </p>
             )}
 
-            {/* Média */}
             {event.media_url && renderMedia(event.media_url)}
 
-            {/* Lien de partage */}
-            {event.public_code && (
+            {isOwner && event.public_code && (
               <div className="border-t border-gray-100 pt-4">
                 <h2 className="text-sm font-semibold text-gray-900 mb-2">
                   Partager l&apos;événement
                 </h2>
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-                  <div className="flex-1 flex items-center gap-2">
-                    <input
-                      type="text"
-                      readOnly
-                      value={publicUrl}
-                      className="flex-1 text-[11px] border border-gray-200 rounded-md px-2 py-1.5 bg-gray-50 text-gray-700"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => {
-                        navigator.clipboard
-                          .writeText(publicUrl)
-                          .then(() => {
-                            toast.success("Lien copié dans le presse-papiers");
-                          })
-                          .catch(() => {
-                            toast.error("Impossible de copier le lien");
-                          });
-                      }}
-                      className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-[11px] font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
+
+                <div className="mt-3 flex flex-col sm:flex-row gap-4 sm:items-start">
+                  <div className="shrink-0">
+                    <div className="text-xs font-medium text-gray-700 mb-2">
+                      QR code
+                    </div>
+
+                    <div
+                      id="qr-event"
+                      className="relative bg-white rounded-xl border border-gray-200 p-3 w-[168px] flex items-center justify-center"
                     >
-                      Copier
-                    </button>
+                      <QRCode value={publicUrl} size={140} level="H" />
+                      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                        <div className="bg-white rounded-lg p-1 shadow-sm">
+                          <img
+                            src="/logo-qr.png"
+                            alt="Grega Play"
+                            className="w-8 h-8 object-contain"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <p className="mt-2 text-[11px] text-gray-500">
+                      Scan pour accéder à l&apos;événement
+                    </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const message = `Participe à mon événement Grega Play : ${publicUrl}`;
-                      const whatsappUrl = `https://wa.me/?text=${encodeURIComponent(
-                        message
-                      )}`;
-                      window.open(whatsappUrl, "_blank");
-                    }}
-                    className="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
-                  >
-                    Partager sur WhatsApp
-                  </button>
+                  <div className="flex-1">
+                    <div className="text-xs font-medium text-gray-700 mb-2">
+                      Lien
+                    </div>
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                      <div className="flex-1 flex items-center gap-2">
+                        <input
+                          type="text"
+                          readOnly
+                          value={publicUrl}
+                          className="flex-1 rounded-lg border border-gray-300 px-3 py-2 text-xs text-gray-700 bg-gray-50"
+                        />
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(publicUrl);
+                              toast.success(
+                                "Lien copié dans le presse-papiers."
+                              );
+                            } catch (err) {
+                              console.error("Erreur copie lien:", err);
+                              toast.error("Impossible de copier le lien.");
+                            }
+                          }}
+                          className="inline-flex items-center px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs font-medium text-gray-700 hover:bg-gray-50"
+                        >
+                          Copier
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="mt-2 text-[11px] text-gray-500">
+                      Partage ce lien (ou le QR) à tes invités.
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
           </div>
 
-          {/* Carte actions principales */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-5">
-            <h2 className="text-sm font-semibold text-gray-900 mb-3">
-              Actions sur l&apos;événement
-            </h2>
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <Link
-                to={`/submit-video/${event.id}`}
-                className="w-full sm:w-auto"
-              >
-                <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 inline-flex justify-center">
-                  Soumettre une vidéo
-                </Button>
-              </Link>
-
-              {isOwner && (
-                <Link
-                  to={`/events/${event.id}/manage-participants`}
-                  className="w-full sm:w-auto"
-                >
-                  <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 inline-flex justify-center">
-                    Inviter des participants
-                  </Button>
-                </Link>
-              )}
-
-              <Link
-                to={`/events/${event.id}/final`}
-                className="w-full sm:w-auto"
-              >
-                <Button className="w-full sm:w-auto text-sm font-semibold py-2.5 bg-purple-600 hover:bg-purple-700">
-                  Voir les vidéos & générer le montage
-                </Button>
-              </Link>
-            </div>
-          </div>
-
-          {/* Carte vidéo finale */}
-          {event.final_video_path && (
-            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-3">
-                Vidéo finale
-              </h2>
-              <video
-                controls
-                className="w-full rounded-xl border border-gray-200"
-                src={event.final_video_path}
-              />
-              <p className="mt-2 text-xs text-gray-500">
-                Tu peux télécharger ou partager cette vidéo en dehors de Grega
-                Play.
+          {!user && (
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-200 p-4">
+              <p className="text-sm text-gray-700">
+                Pour envoyer une vidéo, tu dois être connecté.
               </p>
+              <div className="mt-3 flex flex-col sm:flex-row gap-2">
+                <Button onClick={goLogin} className="w-full sm:w-auto">
+                  Se connecter
+                </Button>
+                <Button
+                  onClick={goRegister}
+                  className="w-full sm:w-auto bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200"
+                >
+                  S’inscrire
+                </Button>
+              </div>
             </div>
           )}
-
-          {/* Lien vers le Dashboard */}
-          <div className="bg-gray-50 border border-gray-200 rounded-xl p-4 text-center">
-            <p className="text-sm text-gray-600">
-              Retourner au{" "}
-              <Link
-                to="/dashboard"
-                className="text-indigo-600 font-medium underline-offset-2 hover:underline"
-              >
-                tableau de bord
-              </Link>{" "}
-              pour voir tous tes événements et l&apos;activité récente.
-            </p>
-          </div>
         </div>
       </div>
     </MainLayout>

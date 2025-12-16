@@ -13,15 +13,18 @@
     "@supabase/supabase-js": "^2.52.1",
     "axios": "^1.11.0",
     "clsx": "^2.1.1",
+    "country-telephone-data": "^0.6.3",
     "framer-motion": "^12.23.9",
     "goober": "^2.1.16",
     "libphonenumber-js": "^1.12.29",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-icons": "^5.5.0",
+    "react-qr-code": "^2.0.18",
     "react-router": "^7.7.1",
     "react-router-dom": "^6.23.0",
-    "react-toastify": "^11.0.5"
+    "react-toastify": "^11.0.5",
+    "world-countries": "^5.1.0"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.7.0",
