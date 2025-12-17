@@ -186,7 +186,36 @@ const videoService = {
     return result;
   },
 
-  async uploadPremiumAsset(file, payload = {}) {
+  
+  async adminKillFinalVideoJob({ jobId } = {}) {
+    if (!jobId) throw new Error("jobId manquant.");
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const backendApiKey = import.meta.env.VITE_BACKEND_API_KEY;
+
+    if (!backendUrl || !backendApiKey) {
+      throw new Error("Configuration backend manquante. Impossible de kill le job.");
+    }
+
+    const response = await fetch(`${backendUrl}/api/videos/admin/jobs/${jobId}/kill`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": backendApiKey,
+      },
+      body: JSON.stringify({}),
+    });
+
+    const result = await safeReadJson(response);
+
+    if (!response.ok) {
+      throw new Error(extractErrorMessage(response.status, result));
+    }
+
+    return result;
+  },
+
+async uploadPremiumAsset(file, payload = {}) {
     if (!file) throw new Error("Aucun fichier à uploader.");
 
     const backendUrl = import.meta.env.VITE_BACKEND_URL;

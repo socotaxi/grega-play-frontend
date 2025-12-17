@@ -38,7 +38,7 @@ const MODE_CHIPS = [
   { value: "full", label: "Toute la vidéo" },
 ];
 
-// ✅ Section isolée + memo: ne re-render plus pendant que generationProgress bouge toutes les 600ms
+// ✅ Section isolée + memo: ne re-render plus pendant que generationProgress bouge
 const SubmittedVideosSection = memo(function SubmittedVideosSection({
   submittedVideosWithUrl,
   isOwner,
@@ -167,8 +167,11 @@ const FinalVideoPage = () => {
 
   const pollTimerRef = useRef(null);
   const progressTimerRef = useRef(null);
-
   const abortControllerRef = useRef(null);
+
+  // ✅ backoff + bascule en "progress réel"
+  const pollDelayRef = useRef(2000);
+  const hasRealProgressRef = useRef(false);
 
   const [transitionChoice, setTransitionChoice] = useState("modern_1");
   const [transitionDuration] = useState(0.3);
@@ -229,15 +232,11 @@ const FinalVideoPage = () => {
       canRegenerateFinalVideo
   );
 
-  // ------------------------------------------------------
-  // ✅ Solution B: upload immédiat des assets + persistance locale
-  // ------------------------------------------------------
   const assetStorageKey = useMemo(() => {
     if (!eventId) return null;
     return `gp:premiumAssets:${eventId}`;
   }, [eventId]);
 
-  // Charger les storagePath sauvegardés (si refresh / retour plus tard)
   useEffect(() => {
     if (!assetStorageKey) return;
     try {
@@ -256,7 +255,6 @@ const FinalVideoPage = () => {
     }
   }, [assetStorageKey]);
 
-  // Sauvegarder dès qu'un storagePath change
   useEffect(() => {
     if (!assetStorageKey) return;
     try {
@@ -308,14 +306,10 @@ const FinalVideoPage = () => {
     async (e) => {
       const file = e.target.files?.[0] || null;
       setIntroFile(file);
-
-      // reset valeur input pour permettre de re-choisir le même fichier
       if (e?.target) e.target.value = "";
-
       if (!file) return;
 
       setAssetPaths((p) => ({ ...p, intro: null }));
-
       const storagePath = await uploadAssetNow(file, "intro");
       if (storagePath) {
         setAssetPaths((p) => ({ ...p, intro: storagePath }));
@@ -333,7 +327,6 @@ const FinalVideoPage = () => {
       if (!file) return;
 
       setAssetPaths((p) => ({ ...p, outro: null }));
-
       const storagePath = await uploadAssetNow(file, "outro");
       if (storagePath) {
         setAssetPaths((p) => ({ ...p, outro: storagePath }));
@@ -351,7 +344,6 @@ const FinalVideoPage = () => {
       if (!file) return;
 
       setAssetPaths((p) => ({ ...p, music: null }));
-
       const storagePath = await uploadAssetNow(file, "music");
       if (storagePath) {
         setAssetPaths((p) => ({ ...p, music: storagePath }));
@@ -402,6 +394,10 @@ const FinalVideoPage = () => {
     hasNotifiedProcessingRef.current = false;
     hasNotifiedDoneRef.current = false;
     hasAppliedDoneStateRef.current = false;
+
+    // ✅ reset polling
+    pollDelayRef.current = 2000;
+    hasRealProgressRef.current = false;
   };
 
   const acceptDoneOnlyIfNewFinalUrl = (updatedEvent) => {
@@ -448,6 +444,10 @@ const FinalVideoPage = () => {
       setJobId(null);
       setJobStatus(null);
       setJobError(null);
+
+      // reset backoff + progress réel
+      pollDelayRef.current = 2000;
+      hasRealProgressRef.current = false;
 
       if (toastMessage) toast.info(toastMessage);
     },
@@ -611,10 +611,17 @@ const FinalVideoPage = () => {
     };
   }, [eventId, stopProcessingUi]);
 
+  // ✅ POLLING avec backoff exponentiel + progression backend (stop fake timer)
   useEffect(() => {
     if (!jobId || !user?.id) return;
 
     let cancelled = false;
+
+    const scheduleNext = () => {
+      const delay = Math.min(15000, Math.max(1500, pollDelayRef.current));
+      pollTimerRef.current = setTimeout(poll, delay);
+      pollDelayRef.current = Math.min(15000, Math.round(pollDelayRef.current * 1.5));
+    };
 
     const poll = async () => {
       if (cancelled) return;
@@ -625,9 +632,18 @@ const FinalVideoPage = () => {
 
         setJobStatus(job.status);
 
+        // ✅ si le backend renvoie progress, on arrête la fausse barre
         if (typeof job.progress === "number") {
           const safeProgress = Math.max(0, Math.min(100, job.progress));
+          if (!hasRealProgressRef.current) {
+            hasRealProgressRef.current = true;
+            stopProgressTimer();
+          }
           setGenerationProgress((p) => Math.max(p, safeProgress));
+        }
+
+        if (job.stage && typeof job.stage === "string") {
+          setGenerationLabel(job.stage);
         }
 
         if (job.status === "done") {
@@ -672,9 +688,12 @@ const FinalVideoPage = () => {
           return;
         }
 
-        pollTimerRef.current = setTimeout(poll, 2000);
+        // ✅ succès => on ralentit moins vite : on reset partiel du backoff
+        pollDelayRef.current = Math.max(2000, Math.round(pollDelayRef.current * 0.85));
+        scheduleNext();
       } catch (e) {
-        pollTimerRef.current = setTimeout(poll, 2500);
+        // erreur réseau => backoff normal
+        scheduleNext();
       }
     };
 
@@ -686,7 +705,6 @@ const FinalVideoPage = () => {
     };
   }, [jobId, user?.id]);
 
-  // ✅ callbacks stables: indispensables pour que memo fonctionne
   const handleDeleteVideo = useCallback(async (videoId) => {
     if (!window.confirm("Supprimer cette vidéo ?")) return;
     try {
@@ -834,8 +852,11 @@ const FinalVideoPage = () => {
 
       toast.info("Montage lancé. La vidéo apparaîtra dès qu’elle sera prête.");
 
+      // ✅ faux progress UNIQUEMENT tant que le backend n’envoie pas job.progress
       stopProgressTimer();
       progressTimerRef.current = setInterval(() => {
+        if (hasRealProgressRef.current) return;
+
         setGenerationProgress((prev) => {
           if (prev >= 90) return 90;
           const next = prev + 0.5;
@@ -848,19 +869,28 @@ const FinalVideoPage = () => {
 
       let requestedOptions = buildRequestedOptions();
 
-      if (canUsePremiumEditing && (musicFile || (introMode === "image" && introFile) || (outroMode === "image" && outroFile))) {
+      if (
+        canUsePremiumEditing &&
+        (musicFile || (introMode === "image" && introFile) || (outroMode === "image" && outroFile))
+      ) {
         setAssetUploading(true);
         try {
           if (introMode === "image" && introFile && !assetPaths.intro) {
             const r = await videoService.uploadPremiumAsset(introFile, { userId: user.id, eventId, kind: "intro" });
             setAssetPaths((p) => ({ ...p, intro: r.storagePath }));
-            requestedOptions = { ...requestedOptions, intro: { enabled: true, type: "custom_image", storagePath: r.storagePath } };
+            requestedOptions = {
+              ...requestedOptions,
+              intro: { enabled: true, type: "custom_image", storagePath: r.storagePath },
+            };
           }
 
           if (outroMode === "image" && outroFile && !assetPaths.outro) {
             const r = await videoService.uploadPremiumAsset(outroFile, { userId: user.id, eventId, kind: "outro" });
             setAssetPaths((p) => ({ ...p, outro: r.storagePath }));
-            requestedOptions = { ...requestedOptions, outro: { enabled: true, type: "custom_image", storagePath: r.storagePath } };
+            requestedOptions = {
+              ...requestedOptions,
+              outro: { enabled: true, type: "custom_image", storagePath: r.storagePath },
+            };
           }
 
           if (musicFile && !assetPaths.music) {
@@ -868,7 +898,11 @@ const FinalVideoPage = () => {
             setAssetPaths((p) => ({ ...p, music: r.storagePath }));
             requestedOptions = {
               ...requestedOptions,
-              music: { ...(requestedOptions.music || {}), storagePath: r.storagePath, mode: requestedOptions.music?.mode || "full" },
+              music: {
+                ...(requestedOptions.music || {}),
+                storagePath: r.storagePath,
+                mode: requestedOptions.music?.mode || "full",
+              },
             };
             if (requestedOptions.music?.mode === "none") requestedOptions.music.mode = "full";
           }
@@ -1276,7 +1310,6 @@ const FinalVideoPage = () => {
                           Retirer
                         </button>
                       )}
-
                     </div>
 
                     <div>
@@ -1302,7 +1335,6 @@ const FinalVideoPage = () => {
           </SectionCard>
         )}
 
-        {/* ✅ Remplacement: la section des vidéos soumises ne re-render plus pendant le progress */}
         <SubmittedVideosSection
           submittedVideosWithUrl={submittedVideosWithUrl}
           isOwner={isOwner}
@@ -1315,7 +1347,10 @@ const FinalVideoPage = () => {
         />
 
         {isOwner && canStartProcessingNow && (
-          <SectionCard title={finalVideo ? "Régénérer la vidéo finale" : "Générer la vidéo finale"} right={<SelectionHint />}>
+          <SectionCard
+            title={finalVideo ? "Régénérer la vidéo finale" : "Générer la vidéo finale"}
+            right={<SelectionHint />}
+          >
             {!capsUnavailable && !canGenerateFinalVideo ? (
               <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 Tu n’as pas le droit de lancer le montage pour cet événement.
@@ -1327,11 +1362,15 @@ const FinalVideoPage = () => {
                     Tu peux régénérer la vidéo en changeant la sélection et/ou les options de montage.
                   </p>
                 ) : (
-                  <p className="text-sm text-gray-600 mb-3">Sélectionne au moins 2 vidéos ci-dessus pour créer la vidéo finale.</p>
+                  <p className="text-sm text-gray-600 mb-3">
+                    Sélectionne au moins 2 vidéos ci-dessus pour créer la vidéo finale.
+                  </p>
                 )}
 
                 {overLimit && (
-                  <p className="mb-3 text-xs text-red-600">Sélection trop grande : maximum {maxSelectableForFinal} vidéos.</p>
+                  <p className="mb-3 text-xs text-red-600">
+                    Sélection trop grande : maximum {maxSelectableForFinal} vidéos.
+                  </p>
                 )}
 
                 {!finalVideo && selectedVideoIds.length < 2 ? (
@@ -1341,12 +1380,22 @@ const FinalVideoPage = () => {
                 ) : null}
 
                 <div className="flex flex-col sm:flex-row justify-center gap-3">
-                  <Button type="button" onClick={handleGenerateVideo} loading={processing || assetUploading} disabled={generateDisabled}>
+                  <Button
+                    type="button"
+                    onClick={handleGenerateVideo}
+                    loading={processing || assetUploading}
+                    disabled={generateDisabled}
+                  >
                     {finalVideo ? "Régénérer la vidéo avec la sélection" : "Générer la vidéo finale"}
                   </Button>
 
                   {(processing || jobId) && (
-                    <Button type="button" variant="secondary" onClick={handleCancelGeneration} disabled={assetUploading}>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleCancelGeneration}
+                      disabled={assetUploading}
+                    >
                       Annuler
                     </Button>
                   )}
