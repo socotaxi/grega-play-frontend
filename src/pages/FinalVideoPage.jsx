@@ -176,6 +176,9 @@ const FinalVideoPage = () => {
   const [transitionChoice, setTransitionChoice] = useState("modern_1");
   const [transitionDuration] = useState(0.3);
 
+  // Watermark: activé par défaut. Désactivable UNIQUEMENT en Premium (UX)
+  const [watermarkEnabled, setWatermarkEnabled] = useState(true);
+
   const [musicMode, setMusicMode] = useState("none");
   const [musicVolume, setMusicVolume] = useState(0.6);
   const [musicFile, setMusicFile] = useState(null);
@@ -186,8 +189,11 @@ const FinalVideoPage = () => {
   const [introFile, setIntroFile] = useState(null);
   const [outroFile, setOutroFile] = useState(null);
 
-  const [introText, setIntroText] = useState("");
-  const [outroText, setOutroText] = useState("");
+  // ✅ FIX: refs + textarea non-contrôlés (évite la perte de focus "recliquer à chaque lettre")
+  const introTextRef = useRef("");
+  const outroTextRef = useRef("");
+  const introTextAreaRef = useRef(null);
+  const outroTextAreaRef = useRef(null);
 
   useEffect(() => {
     if (musicFile && musicMode === "none") setMusicMode("full");
@@ -231,6 +237,14 @@ const FinalVideoPage = () => {
       capsPremium?.isPremiumEvent ||
       canRegenerateFinalVideo
   );
+
+  // ✅ Règle UX: si pas Premium => watermark forcé ON + on verrouille l’UI
+  useEffect(() => {
+    if (!caps) return;
+    if (!canUsePremiumEditing) {
+      setWatermarkEnabled(true);
+    }
+  }, [caps, canUsePremiumEditing]);
 
   const assetStorageKey = useMemo(() => {
     if (!eventId) return null;
@@ -395,7 +409,6 @@ const FinalVideoPage = () => {
     hasNotifiedDoneRef.current = false;
     hasAppliedDoneStateRef.current = false;
 
-    // ✅ reset polling
     pollDelayRef.current = 2000;
     hasRealProgressRef.current = false;
   };
@@ -445,7 +458,6 @@ const FinalVideoPage = () => {
       setJobStatus(null);
       setJobError(null);
 
-      // reset backoff + progress réel
       pollDelayRef.current = 2000;
       hasRealProgressRef.current = false;
 
@@ -632,7 +644,6 @@ const FinalVideoPage = () => {
 
         setJobStatus(job.status);
 
-        // ✅ si le backend renvoie progress, on arrête la fausse barre
         if (typeof job.progress === "number") {
           const safeProgress = Math.max(0, Math.min(100, job.progress));
           if (!hasRealProgressRef.current) {
@@ -688,11 +699,9 @@ const FinalVideoPage = () => {
           return;
         }
 
-        // ✅ succès => on ralentit moins vite : on reset partiel du backoff
         pollDelayRef.current = Math.max(2000, Math.round(pollDelayRef.current * 0.85));
         scheduleNext();
       } catch (e) {
-        // erreur réseau => backoff normal
         scheduleNext();
       }
     };
@@ -743,16 +752,19 @@ const FinalVideoPage = () => {
   const isFirstGeneration = !finalVideo;
 
   const buildRequestedOptions = useCallback(() => {
+    // ✅ Non-premium => watermark FORCÉ on + options limitées
     if (!canUsePremiumEditing) {
       return {
         transition: "modern_1",
         transitionDuration: 0.3,
+        watermark: { enabled: true },
         music: { mode: "none", volume: 0.6 },
         intro: { enabled: true, type: "default" },
         outro: { enabled: true, type: "default" },
       };
     }
 
+    // ✅ Important: si l’utilisateur choisit "intro_outro", on ne doit JAMAIS écraser en "full".
     const resolvedMusicMode = musicMode === "none" && (musicFile || assetPaths.music) ? "full" : musicMode;
 
     const intro =
@@ -760,7 +772,7 @@ const FinalVideoPage = () => {
         ? {
             enabled: true,
             type: "custom_text",
-            text: (introText || "").trim() || null,
+            text: (introTextRef.current || "").trim() || null,
           }
         : {
             enabled: true,
@@ -773,7 +785,7 @@ const FinalVideoPage = () => {
         ? {
             enabled: true,
             type: "custom_text",
-            text: (outroText || "").trim() || null,
+            text: (outroTextRef.current || "").trim() || null,
           }
         : {
             enabled: true,
@@ -784,6 +796,10 @@ const FinalVideoPage = () => {
     return {
       transition: transitionChoice,
       transitionDuration: Number(transitionDuration || 0.3),
+      watermark: {
+        // ✅ Premium: désactivable
+        enabled: Boolean(watermarkEnabled),
+      },
       music: {
         mode: resolvedMusicMode,
         volume: Number(musicVolume || 0.6),
@@ -796,14 +812,13 @@ const FinalVideoPage = () => {
     canUsePremiumEditing,
     transitionChoice,
     transitionDuration,
+    watermarkEnabled,
     musicMode,
     musicVolume,
     musicFile,
     assetPaths,
     introMode,
     outroMode,
-    introText,
-    outroText,
   ]);
 
   const handleGenerateVideo = useCallback(async () => {
@@ -852,7 +867,6 @@ const FinalVideoPage = () => {
 
       toast.info("Montage lancé. La vidéo apparaîtra dès qu’elle sera prête.");
 
-      // ✅ faux progress UNIQUEMENT tant que le backend n’envoie pas job.progress
       stopProgressTimer();
       progressTimerRef.current = setInterval(() => {
         if (hasRealProgressRef.current) return;
@@ -901,6 +915,7 @@ const FinalVideoPage = () => {
               music: {
                 ...(requestedOptions.music || {}),
                 storagePath: r.storagePath,
+                // ✅ garde le mode choisi (intro_outro / full) ; only fix "none" => full
                 mode: requestedOptions.music?.mode || "full",
               },
             };
@@ -1117,7 +1132,13 @@ const FinalVideoPage = () => {
                 Options de montage {canUsePremiumEditing ? <PremiumBadge /> : null}
               </span>
             }
-            right={<SelectionHint />}
+            right={
+              <div className="text-xs text-gray-500">
+                Sélection : <span className="font-medium">{selectedVideoIds.length}</span> (min 2
+                {Number.isFinite(maxSelectableForFinal) ? `, max ${maxSelectableForFinal}` : ""})
+                {overLimit ? <span className="ml-2 text-red-600">Sélection trop grande</span> : null}
+              </div>
+            }
           >
             {!canUsePremiumEditing ? (
               <div className="rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-700">
@@ -1175,7 +1196,13 @@ const FinalVideoPage = () => {
                         <Chip active={introMode === "image"} onClick={() => setIntroMode("image")}>
                           Image
                         </Chip>
-                        <Chip active={introMode === "text"} onClick={() => setIntroMode("text")}>
+                        <Chip
+                          active={introMode === "text"}
+                          onClick={() => {
+                            setIntroMode("text");
+                            setTimeout(() => introTextAreaRef.current?.focus(), 0);
+                          }}
+                        >
                           Texte
                         </Chip>
                       </div>
@@ -1210,8 +1237,11 @@ const FinalVideoPage = () => {
                       <>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Texte d’intro</label>
                         <textarea
-                          value={introText}
-                          onChange={(e) => setIntroText(e.target.value)}
+                          ref={introTextAreaRef}
+                          defaultValue={introTextRef.current}
+                          onChange={(e) => {
+                            introTextRef.current = e.target.value;
+                          }}
                           rows={3}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                           placeholder='Ex: "Joyeux anniversaire !"'
@@ -1228,7 +1258,13 @@ const FinalVideoPage = () => {
                         <Chip active={outroMode === "image"} onClick={() => setOutroMode("image")}>
                           Image
                         </Chip>
-                        <Chip active={outroMode === "text"} onClick={() => setOutroMode("text")}>
+                        <Chip
+                          active={outroMode === "text"}
+                          onClick={() => {
+                            setOutroMode("text");
+                            setTimeout(() => outroTextAreaRef.current?.focus(), 0);
+                          }}
+                        >
                           Texte
                         </Chip>
                       </div>
@@ -1255,16 +1291,17 @@ const FinalVideoPage = () => {
                           </button>
                         )}
 
-                        <p className="mt-2 text-xs text-gray-500">
-                          Exemple : remerciements, signature, logo, message final.
-                        </p>
+                        <p className="mt-2 text-xs text-gray-500">Exemple : remerciements, signature, logo, message final.</p>
                       </>
                     ) : (
                       <>
                         <label className="block text-xs font-medium text-gray-600 mb-1">Texte d’outro</label>
                         <textarea
-                          value={outroText}
-                          onChange={(e) => setOutroText(e.target.value)}
+                          ref={outroTextAreaRef}
+                          defaultValue={outroTextRef.current}
+                          onChange={(e) => {
+                            outroTextRef.current = e.target.value;
+                          }}
                           rows={3}
                           className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm"
                           placeholder='Ex: "Avec amour, de la part de toute l’équipe."'
@@ -1310,6 +1347,12 @@ const FinalVideoPage = () => {
                           Retirer
                         </button>
                       )}
+                      {musicMode === "intro_outro" && (
+                        <p className="mt-2 text-xs text-gray-500">
+                          Si tu constates que la musique joue sur toute la vidéo malgré “Intro/Outro”, c’est côté backend
+                          (FFmpeg) qu’il faudra corriger le mix/trim.
+                        </p>
+                      )}
                     </div>
 
                     <div>
@@ -1326,6 +1369,42 @@ const FinalVideoPage = () => {
                       <p className="mt-2 text-xs text-gray-500">0.6 est un bon point de départ.</p>
                     </div>
                   </div>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold text-gray-900">Watermark</div>
+                      <div className="text-xs text-gray-500">Logo Grega Play sur la vidéo finale</div>
+                    </div>
+
+                    <label className="inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        className="h-4 w-4"
+                        checked={watermarkEnabled}
+                        disabled={!canUsePremiumEditing}
+                        onChange={(e) => {
+                          // ✅ sécurité UX : en non-premium, impossible de le couper
+                          if (!canUsePremiumEditing) return;
+                          setWatermarkEnabled(e.target.checked);
+                        }}
+                      />
+                      <span className="text-sm text-gray-700">
+                        {canUsePremiumEditing ? "Activer" : "Actif (gratuit)"}
+                      </span>
+                    </label>
+                  </div>
+
+                  {!canUsePremiumEditing ? (
+                    <p className="mt-2 text-xs text-gray-500">
+                      En gratuit, le watermark est obligatoire. Il devient désactivable uniquement en Premium.
+                    </p>
+                  ) : (
+                    <p className="mt-2 text-xs text-gray-500">
+                      En Premium tu peux le désactiver. Si tu le désactives, la vidéo finale sera exportée sans watermark.
+                    </p>
+                  )}
                 </div>
 
                 {assetUploading && <p className="mt-3 text-xs text-gray-600">Upload des assets Premium…</p>}
@@ -1347,10 +1426,7 @@ const FinalVideoPage = () => {
         />
 
         {isOwner && canStartProcessingNow && (
-          <SectionCard
-            title={finalVideo ? "Régénérer la vidéo finale" : "Générer la vidéo finale"}
-            right={<SelectionHint />}
-          >
+          <SectionCard title={finalVideo ? "Régénérer la vidéo finale" : "Générer la vidéo finale"} right={<SelectionHint />}>
             {!capsUnavailable && !canGenerateFinalVideo ? (
               <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">
                 Tu n’as pas le droit de lancer le montage pour cet événement.
@@ -1380,22 +1456,12 @@ const FinalVideoPage = () => {
                 ) : null}
 
                 <div className="flex flex-col sm:flex-row justify-center gap-3">
-                  <Button
-                    type="button"
-                    onClick={handleGenerateVideo}
-                    loading={processing || assetUploading}
-                    disabled={generateDisabled}
-                  >
+                  <Button type="button" onClick={handleGenerateVideo} loading={processing || assetUploading} disabled={generateDisabled}>
                     {finalVideo ? "Régénérer la vidéo avec la sélection" : "Générer la vidéo finale"}
                   </Button>
 
                   {(processing || jobId) && (
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleCancelGeneration}
-                      disabled={assetUploading}
-                    >
+                    <Button type="button" variant="secondary" onClick={handleCancelGeneration} disabled={assetUploading}>
                       Annuler
                     </Button>
                   )}
