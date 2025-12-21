@@ -958,7 +958,7 @@ const DashboardPage = () => {
                                         <label className="block text-[11px] font-medium text-gray-500 mb-1">
                                           Lien de partage
                                         </label>
-<div className="flex items-center gap-2 max-w-md mx-auto px-2 sm:px-0 sm:max-w-none sm:mx-0">
+<div className="flex flex-col gap-2">
   {/* Ligne 1 : champ + copier (compact, type app) */}
   <div className="flex flex-wrap items-center gap-2">
     <input
