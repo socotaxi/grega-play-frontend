@@ -126,7 +126,7 @@ const CguPage = () => {
           <section className="space-y-2">
             <h2 className="text-lg font-semibold text-gray-900">11. Contact</h2>
             <p className="text-gray-700">
-              Contact : <span className="font-medium">contact@gregaplay.com</span> (à adapter)
+              Contact : <span className="font-medium">contact@gregaplay.com</span>
             </p>
           </section>
         </div>
