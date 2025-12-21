@@ -1111,7 +1111,8 @@ const DashboardPage = () => {
                               </p>
                             </div>
 
-                            <div className="flex flex-col sm:flex-row gap-2">
+                            <div className="flex flex-col items-center sm:flex-row sm:items-center gap-2">
+
                               <Link
                                 to={openUrl}
                                 className="inline-flex items-center justify-center px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-[11px] font-medium text-gray-700 hover:bg-gray-50"
