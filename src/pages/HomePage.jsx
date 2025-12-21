@@ -195,17 +195,18 @@ const HomePage = () => {
                     </div>
                   </div>
 
-                  {/* Wrapper responsive 16:9 */}
-                  <div className="mt-2 relative w-full" style={{ paddingTop: '56.25%' }}>
-                    <iframe
-                      src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO"
-                      title="Présentation de Grega Play"
-                      className="absolute top-0 left-0 w-full h-full rounded-2xl"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                    />
-                  </div>
+                     {/* Wrapper responsive 9:16 */}
+<div className="mt-2 relative w-full" style={{ paddingTop: '177.78%' }}>
+  <iframe
+    src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO"
+    title="Présentation de Grega Play"
+    className="absolute top-0 left-0 w-full h-full rounded-2xl"
+    frameBorder="0"
+    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+    allowFullScreen
+  />
+</div>
+
                 </div>
               </div>
             </div>
