@@ -958,7 +958,7 @@ const DashboardPage = () => {
                                         <label className="block text-[11px] font-medium text-gray-500 mb-1">
                                           Lien de partage
                                         </label>
-                                        <div className="flex flex-col sm:flex-row gap-2">
+                                        <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
                                           <div className="flex-1 flex items-center gap-2">
                                             <input
                                               type="text"
@@ -982,7 +982,8 @@ const DashboardPage = () => {
                                                     );
                                                   });
                                               }}
-                                              className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-[11px] font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
+                                              className="inline-flex items-center justify-center w-full sm:w-auto px-3 py-1.5 border border-gray-300 text-[11px] font-medium rounded-md bg-white hover:bg-gray-50 text-gray-700"
+
                                             >
                                               Copier
                                             </button>
@@ -997,7 +998,7 @@ const DashboardPage = () => {
                                               )}`;
                                               window.open(whatsappUrl, '_blank');
                                             }}
-                                            className="inline-flex items-center justify-center px-3 py-1.5 text-[11px] font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
+                                            className="inline-flex items-center justify-center w-full sm:w-auto px-3 py-1.5 text-[11px] font-medium rounded-md bg-green-500 hover:bg-green-600 text-white"
                                           >
                                             Partager sur WhatsApp
                                           </button>
