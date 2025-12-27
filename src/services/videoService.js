@@ -5,6 +5,9 @@ const MAX_VIDEO_SIZE_MB = 50;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime"]; // MP4, MOV
 
+const ADMIN_EMAIL = "edhemrombhot@gmail.com";
+const isAdminEmail = (email) => String(email || "").toLowerCase() === ADMIN_EMAIL;
+
 async function getAccessTokenOrThrow() {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw new Error("Impossible de récupérer la session utilisateur.");
@@ -19,6 +22,16 @@ async function getUserIdOrThrow() {
   const uid = data?.user?.id;
   if (!uid) throw new Error("Utilisateur non connecté.");
   return uid;
+}
+
+async function getUserEmailOrNull() {
+  try {
+    const { data, error } = await supabase.auth.getUser();
+    if (error) return null;
+    return data?.user?.email || null;
+  } catch {
+    return null;
+  }
 }
 
 function sanitizeFileName(originalName) {
@@ -116,10 +129,8 @@ function xhrUpload({ url, headers, formData, onProgress }) {
           totalLabel: formatBytes(evt.total),
         };
 
-        // 2e argument ignoré si ton handler ne le prend pas
         onProgress(pct, meta);
       } else {
-        // indéterminé
         const meta = {
           loaded: evt.loaded,
           total: null,
@@ -186,7 +197,6 @@ const videoService = {
     return result;
   },
 
-  
   async adminKillFinalVideoJob({ jobId } = {}) {
     if (!jobId) throw new Error("jobId manquant.");
 
@@ -215,7 +225,7 @@ const videoService = {
     return result;
   },
 
-async uploadPremiumAsset(file, payload = {}) {
+  async uploadPremiumAsset(file, payload = {}) {
     if (!file) throw new Error("Aucun fichier à uploader.");
 
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
@@ -316,7 +326,11 @@ async uploadPremiumAsset(file, payload = {}) {
       );
     }
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+    const uploaderEmail = await getUserEmailOrNull();
+    const isAdmin = isAdminEmail(uploaderEmail);
+
+    // ✅ Bypass taille pour l'admin
+    if (!isAdmin && file.size > MAX_VIDEO_SIZE_BYTES) {
       throw new Error(
         `La vidéo est trop lourde. Taille maximale autorisée : ${MAX_VIDEO_SIZE_MB} Mo.`
       );

@@ -10,6 +10,9 @@ import supabase from '../lib/supabaseClient';
 import activityService from "../services/activityService";
 import { useAuth } from "../context/AuthContext";
 
+const ADMIN_EMAIL = "edhemrombhot@gmail.com";
+const isAdminEmail = (email) => String(email || "").toLowerCase() === ADMIN_EMAIL;
+
 const MAX_VIDEO_DURATION_SECONDS = 30;
 const MAX_VIDEO_SIZE_MB = 50;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
@@ -43,6 +46,10 @@ const SubmitVideoPage = () => {
   const navigate = useNavigate();
 
   const { user, profile } = useAuth();
+
+  const isAdmin = isAdminEmail(user?.email);
+  const maxDurationSec = isAdmin ? Number.POSITIVE_INFINITY : MAX_VIDEO_DURATION_SECONDS;
+  const maxSizeBytes = isAdmin ? Number.POSITIVE_INFINITY : MAX_VIDEO_SIZE_BYTES;
 
   const [event, setEvent] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
@@ -202,8 +209,9 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    if (file.size > MAX_VIDEO_SIZE_BYTES) {
-      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
+    // ✅ Bypass taille si admin (maxSizeBytes = Infinity)
+    if (file.size > maxSizeBytes) {
+      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${isAdmin ? "illimitée" : (MAX_VIDEO_SIZE_MB + " Mo")}.`);
       setSelectedFile(null);
       setPreviewUrl(null);
       e.target.value = null;
@@ -216,7 +224,8 @@ const SubmitVideoPage = () => {
     video.onloadedmetadata = () => {
       window.URL.revokeObjectURL(video.src);
 
-      if (video.duration > MAX_VIDEO_DURATION_SECONDS) {
+      // ✅ Bypass durée si admin (maxDurationSec = Infinity)
+      if (video.duration > maxDurationSec) {
         setError(`⛔ La vidéo dépasse ${MAX_VIDEO_DURATION_SECONDS} secondes.`);
         setSelectedFile(null);
         setPreviewUrl(null);
@@ -285,8 +294,9 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    if (selectedFile.size > MAX_VIDEO_SIZE_BYTES) {
-      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
+    // ✅ Bypass taille si admin (maxSizeBytes = Infinity)
+    if (selectedFile.size > maxSizeBytes) {
+      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${isAdmin ? "illimitée" : (MAX_VIDEO_SIZE_MB + " Mo")}.`);
       return;
     }
 
@@ -308,7 +318,6 @@ const SubmitVideoPage = () => {
       };
 
       await videoService.uploadVideo(selectedFile, payload, (pctRaw, meta) => {
-        // indéterminé
         if (pctRaw === -1) {
           setIsIndeterminateUpload(true);
           if (meta) {
@@ -490,7 +499,7 @@ const SubmitVideoPage = () => {
                 disabled={submitting || !canUpload}
               />
               <p className="mt-1 text-xs text-gray-500">
-                Durée max : {MAX_VIDEO_DURATION_SECONDS} secondes · Taille max : {MAX_VIDEO_SIZE_MB} Mo.
+                Durée max : {isAdmin ? "illimitée" : `${MAX_VIDEO_DURATION_SECONDS} secondes`} · Taille max : {isAdmin ? "illimitée" : `${MAX_VIDEO_SIZE_MB} Mo`}.
               </p>
 
               {previewUrl && (
