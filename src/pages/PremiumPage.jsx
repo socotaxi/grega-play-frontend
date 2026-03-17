@@ -1,11 +1,23 @@
 // src/pages/PremiumPage.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import MainLayout from "../components/layout/MainLayout";
-import Button from "../components/ui/Button";
 import { useAuth } from "../context/AuthContext";
 import eventService from "../services/eventService";
 import { toast } from "react-toastify";
+import {
+  HiSparkles,
+  HiFilm,
+  HiLightningBolt,
+  HiCheck,
+  HiX,
+  HiChevronDown,
+  HiArrowRight,
+  HiUsers,
+  HiBriefcase,
+  HiClock,
+} from "react-icons/hi";
 
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
 const API_KEY = import.meta.env.VITE_BACKEND_API_KEY;
@@ -14,60 +26,40 @@ const PremiumPage = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
 
-  const [accountDuration, setAccountDuration] = useState("1w"); // 1 semaine par défaut
-  const [eventDuration, setEventDuration] = useState("3d"); // 3 jours par défaut
+  const [boostTab, setBoostTab] = useState("account"); // "account" | "event"
+  const [accountDuration, setAccountDuration] = useState("1w");
+  const [eventDuration, setEventDuration] = useState("3d");
   const [events, setEvents] = useState([]);
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [eventsError, setEventsError] = useState(null);
   const [selectedEventId, setSelectedEventId] = useState("");
   const [loadingBoostAccount, setLoadingBoostAccount] = useState(false);
   const [loadingBoostEvent, setLoadingBoostEvent] = useState(false);
+  const [openFaq, setOpenFaq] = useState(null);
 
-  // Calcul Premium compte (même logique que MainLayout → truthy sur is_premium_account OU is_premium)
-  const { isPremiumAccount, premiumAccountExpiresAt, premiumAccountLabel } =
-    useMemo(() => {
-      if (!profile) {
-        return {
-          isPremiumAccount: false,
-          premiumAccountExpiresAt: null,
-          premiumAccountLabel: "",
-        };
-      }
+  const { isPremiumAccount, premiumAccountLabel } = useMemo(() => {
+    if (!profile) return { isPremiumAccount: false, premiumAccountLabel: "" };
+    const rawExpires = profile.premium_account_expires_at;
+    const expiresDate = rawExpires ? new Date(rawExpires) : null;
+    const effectivePremium = Boolean(
+      profile.is_premium_account || profile.is_premium
+    );
+    let label = "";
+    if (effectivePremium && expiresDate) {
+      label = `Premium jusqu'au ${expiresDate.toLocaleDateString("fr-FR", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      })}`;
+    } else if (effectivePremium) {
+      label = "Compte actuellement Premium";
+    }
+    return { isPremiumAccount: effectivePremium, premiumAccountLabel: label };
+  }, [profile]);
 
-      const rawExpires = profile.premium_account_expires_at;
-      const expiresDate = rawExpires ? new Date(rawExpires) : null;
-
-      const effectivePremium = Boolean(
-        profile.is_premium_account || profile.is_premium
-      );
-
-      let label = "";
-      if (effectivePremium && expiresDate) {
-        const options = {
-          year: "numeric",
-          month: "short",
-          day: "numeric",
-        };
-        label = `Ton compte est Premium jusqu'au ${expiresDate.toLocaleDateString(
-          "fr-FR",
-          options
-        )}`;
-      } else if (effectivePremium) {
-        label = "Ton compte est actuellement en mode Premium.";
-      }
-
-      return {
-        isPremiumAccount: effectivePremium,
-        premiumAccountExpiresAt: expiresDate,
-        premiumAccountLabel: label,
-      };
-    }, [profile]);
-
-  // Charger les événements de l'utilisateur pour le boost événement
   useEffect(() => {
+    if (!user?.id) return;
     const loadEvents = async () => {
-      if (!user?.id) return;
-
       try {
         setLoadingEvents(true);
         setEventsError(null);
@@ -77,37 +69,25 @@ const PremiumPage = () => {
         );
         setEvents(dashboardEvents || []);
       } catch (err) {
-        console.error("Erreur chargement événements pour Premium:", err);
         setEventsError(
-          err?.message ||
-            "Impossible de charger vos événements. Veuillez réessayer."
+          err?.message || "Impossible de charger tes événements."
         );
       } finally {
         setLoadingEvents(false);
       }
     };
-
     loadEvents();
   }, [user]);
 
-  const handleContinueFree = () => {
-    navigate("/dashboard");
-  };
-
   const handleBoostAccount = async () => {
     if (!user?.id) {
-      toast.error("Tu dois être connecté pour activer le compte Premium.");
+      toast.error("Connecte-toi pour activer le Premium.");
       return;
     }
-
     if (!API_BASE_URL || !API_KEY) {
-      console.error("Config backend manquante pour boost compte.");
-      toast.error(
-        "Configuration backend manquante. Vérifie les variables d'environnement."
-      );
+      toast.error("Configuration backend manquante.");
       return;
     }
-
     setLoadingBoostAccount(true);
     try {
       const res = await fetch(`${API_BASE_URL}/api/billing/checkout-account`, {
@@ -116,38 +96,20 @@ const PremiumPage = () => {
           "Content-Type": "application/json",
           "x-api-key": API_KEY,
         },
-        body: JSON.stringify({
-          userId: user.id,
-          duration: accountDuration,
-        }),
+        body: JSON.stringify({ userId: user.id, duration: accountDuration }),
       });
-
       let data = {};
       try {
         data = await res.json();
       } catch (_) {}
-
       if (!res.ok || data.error) {
-        console.error("❌ Erreur boost compte Premium:", data);
-        toast.error(
-          data.error ||
-            "Impossible d'activer le compte Premium pour le moment."
-        );
+        toast.error(data.error || "Impossible d'activer le Premium.");
         return;
       }
-
-      toast.success(
-        data.message ||
-          "Ton compte a été boosté en Premium pendant la période choisie."
-      );
-
-      // Option simple : recharger la page pour récupérer le nouveau profil Premium
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
-    } catch (err) {
-      console.error("❌ Erreur réseau boost compte Premium:", err);
-      toast.error("Erreur lors de l'activation du compte Premium.");
+      toast.success(data.message || "Compte boosté en Premium !");
+      setTimeout(() => window.location.reload(), 800);
+    } catch {
+      toast.error("Erreur lors de l'activation.");
     } finally {
       setLoadingBoostAccount(false);
     }
@@ -155,34 +117,24 @@ const PremiumPage = () => {
 
   const handleBoostEvent = async () => {
     if (!user?.id) {
-      toast.error("Tu dois être connecté pour booster un événement.");
+      toast.error("Connecte-toi pour booster un événement.");
       return;
     }
-
     if (isPremiumAccount) {
-      toast.info(
-        "Ton compte est déjà Premium, tous tes événements bénéficient des options Premium."
-      );
+      toast.info("Ton compte est déjà Premium !");
       return;
     }
-
     if (!selectedEventId) {
-      toast.error("Sélectionne d'abord un événement à booster.");
+      toast.error("Sélectionne un événement.");
       return;
     }
-
     if (!API_BASE_URL || !API_KEY) {
-      console.error("Config backend manquante pour boost événement.");
-      toast.error(
-        "Configuration backend manquante. Vérifie les variables d'environnement."
-      );
+      toast.error("Configuration backend manquante.");
       return;
     }
-
     setLoadingBoostEvent(true);
     try {
       const baseUrl = window.location.origin + "/premium";
-
       const res = await fetch(`${API_BASE_URL}/api/billing/checkout-event`, {
         method: "POST",
         headers: {
@@ -197,33 +149,18 @@ const PremiumPage = () => {
           cancelUrl: baseUrl,
         }),
       });
-
       let data = {};
       try {
         data = await res.json();
       } catch (_) {}
-
       if (!res.ok || data.error) {
-        console.error("❌ Erreur boost événement Premium:", data);
-        toast.error(
-          data.error ||
-            "Impossible de booster cet événement pour le moment."
-        );
+        toast.error(data.error || "Impossible de booster cet événement.");
         return;
       }
-
-      toast.success(
-        data.message ||
-          "Ton événement a été boosté en Premium pendant la période choisie."
-      );
-
-      // On peut recharger la page ou simplement rafraîchir les événements
-      setTimeout(() => {
-        window.location.reload();
-      }, 800);
-    } catch (err) {
-      console.error("❌ Erreur réseau boost événement Premium:", err);
-      toast.error("Erreur lors de l'activation de l'événement Premium.");
+      toast.success(data.message || "Événement boosté en Premium !");
+      setTimeout(() => window.location.reload(), 800);
+    } catch {
+      toast.error("Erreur lors de l'activation.");
     } finally {
       setLoadingBoostEvent(false);
     }
@@ -235,503 +172,535 @@ const PremiumPage = () => {
   ];
 
   const eventDurationOptions = [
-    { label: "24 heures", value: "24h" },
+    { label: "24 h", value: "24h" },
     { label: "3 jours", value: "3d" },
     { label: "7 jours", value: "7d" },
   ];
 
   const canUseEventBoost = !isPremiumAccount && events.length > 0;
 
+  const handleMainCta = () => {
+    if (boostTab === "account") handleBoostAccount();
+    else handleBoostEvent();
+  };
+
+  const isMainCtaLoading =
+    boostTab === "account" ? loadingBoostAccount : loadingBoostEvent;
+
+  const isMainCtaDisabled =
+    boostTab === "account"
+      ? loadingBoostAccount || isPremiumAccount
+      : loadingBoostEvent || !canUseEventBoost || !selectedEventId;
+
+  const benefits = [
+    {
+      icon: HiFilm,
+      color: "bg-purple-100 text-purple-600",
+      title: "Vidéos illimitées",
+      desc: "Fini la limite de 5 clips. Collecte autant que tu veux.",
+    },
+    {
+      icon: HiLightningBolt,
+      color: "bg-amber-100 text-amber-600",
+      title: "Traitement prioritaire",
+      desc: "Ta vidéo finale est générée en tête de file.",
+    },
+    {
+      icon: HiSparkles,
+      color: "bg-emerald-100 text-emerald-600",
+      title: "Meilleures transitions",
+      desc: "Transitions fluides pour un rendu cinématographique.",
+    },
+    {
+      icon: HiClock,
+      color: "bg-blue-100 text-blue-600",
+      title: "Clips plus longs",
+      desc: "Jusqu'à 60 s par clip (30 s en gratuit).",
+    },
+  ];
+
+  const faqItems = [
+    {
+      question: "Quelle est la différence entre gratuit et Premium ?",
+      answer:
+        "La version gratuite te permet de faire des petits événements (5 clips max, 30 s/clip). Premium débloque les clips illimités, plus de durée, de meilleures transitions et une priorité de traitement.",
+    },
+    {
+      question: "Est-ce que je paye par événement ou par abonnement ?",
+      answer:
+        "Tu choisis : boost d'un événement spécifique, ou boost de tout ton compte pendant une durée donnée.",
+    },
+    {
+      question: "Que deviennent mes événements gratuits si je passe Premium ?",
+      answer:
+        "Tes événements gratuits restent accessibles comme avant. Le boost Premium s'applique à tes nouveaux événements créés pendant la période active.",
+    },
+    {
+      question: "Les participants doivent-ils payer ?",
+      answer:
+        "Non. Seul l'organisateur choisit le mode Premium. Les invités participent toujours gratuitement.",
+    },
+    {
+      question: "Puis-je revenir à la version gratuite ?",
+      answer:
+        "Oui. Le Premium n'est pas une obligation permanente — tu l'actives quand tu en as besoin.",
+    },
+  ];
+
   return (
     <MainLayout>
-      <div className="min-h-[calc(100vh-80px)] bg-gray-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-10 space-y-10">
-          {/* HERO */}
-          <section className="bg-white rounded-3xl border border-gray-200 shadow-sm px-6 py-8 sm:px-8 sm:py-10">
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-6">
-              <div>
-                <p className="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-700 border border-purple-100 mb-3">
-                  Lancement · Grega Play Premium free*
-                </p>
-                <h1 className="text-2xl sm:text-3xl font-bold text-gray-900">
-                  Booster ton compte ou un événement en Premium (Free*)
-                </h1>
-                <p className="mt-3 text-sm text-gray-600 max-w-xl">
-                  Plus de vidéos, plus de liberté, plus d’émotion. Grega Play
-                  Premium te donne tout ce qu’il faut pour créer des vidéos
-                  collectives inoubliables. (*Pendant la phase de lancement,
-                  l’activation est gratuite, mais limitée dans le temps :
-                  choisis un boost de compte ou un boost d’événement.)
-                </p>
+      <div className="min-h-[calc(100vh-64px)] bg-gray-50 pb-28 md:pb-0">
 
-                {!isPremiumAccount ? (
-                  <div className="mt-5 flex flex-wrap items-center gap-3">
-                    <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-100">
-                      Tu peux activer un boost Premium free
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleContinueFree}
-                      className="text-sm font-medium text-gray-600 hover:text-gray-800"
-                    >
-                      Continuer avec la version gratuite
-                    </button>
-                  </div>
-                ) : (
-                  <div className="mt-5 flex flex-col gap-2">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className="inline-flex items-center px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 text-xs font-medium border border-emerald-100">
-                        Tu es déjà en compte Premium
-                      </span>
-                      {premiumAccountLabel && (
-                        <span className="text-xs text-gray-600">
-                          {premiumAccountLabel}
-                        </span>
-                      )}
-                    </div>
-                    <Button
-                      onClick={() => navigate("/create-event")}
-                      className="inline-flex items-center px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-full shadow-sm w-fit"
-                    >
-                      Créer un nouvel événement Premium
-                    </Button>
-                  </div>
-                )}
-              </div>
+        {/* ── HERO ── */}
+        <section className="bg-gradient-to-br from-[#0f0720] via-[#1e0d3e] to-[#0b0518] px-4 py-12 sm:py-16 text-white">
+          <div className="max-w-xl mx-auto text-center">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-400/20 text-amber-300 text-xs font-semibold border border-amber-400/30 mb-5">
+              <HiSparkles className="w-3.5 h-3.5" />
+              Lancement — 100 % gratuit pendant la phase bêta
+            </span>
 
-              <div className="md:w-64">
-                <div className="bg-gradient-to-br from-purple-600 via-purple-500 to-emerald-500 rounded-2xl p-4 text-white shadow-lg">
-                  <p className="text-xs uppercase tracking-wide text-purple-100">
-                    Offre de lancement
-                  </p>
-                  <p className="mt-2 text-lg font-semibold">
-                    Grega Play Premium
-                  </p>
-                  <p className="mt-1 text-sm text-purple-100">
-                    Idéal pour les grandes célébrations, les équipes et les
-                    familles.
-                  </p>
-                  <div className="mt-4">
-                    <p className="text-sm text-purple-100 line-through">
-                      Abonnement premium : 2500 XOF
-                    </p>
-                    <p className="mt-1 text-2xl font-bold">Actuellement : 0 XAF</p>
-                    <p className="text-xs text-purple-100">
-                      *Grega Play Premium est gratuit pendant la phase de lancement, pour une
-                      durée limitée.
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </section>
+            <h1 className="text-3xl sm:text-4xl font-extrabold leading-tight tracking-tight">
+              Transforme tes moments en{" "}
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+                souvenirs inoubliables
+              </span>
+            </h1>
 
-          {/* CHOIX DU MODE PREMIUM */}
-          <section className="space-y-6">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-              Choisir comment booster Grega Play en Premium
-            </h2>
-            <p className="text-sm text-gray-600 max-w-2xl">
-              Tu as deux options : booster ton{" "}
-              <span className="font-semibold">compte</span> pour que tous tes
-              événements soient Premium pendant une durée donnée, ou booster un
-              <span className="font-semibold"> événement spécifique</span> pour
-              une célébration importante.
+            <p className="mt-4 text-sm sm:text-base text-purple-200 leading-relaxed">
+              Grega Play Premium enlève toutes les limites. Plus de clips,
+              meilleure qualité, montage prioritaire — pour les moments qui
+              comptent vraiment.
             </p>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Boost Compte Premium */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Booster mon compte Premium
-                  </h3>
-                  {isPremiumAccount && (
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-medium border border-emerald-100">
-                      Déjà actif
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-600">
-                  Tous tes événements (présents et futurs) bénéficient des
-                  options Premium pendant la durée choisie.
-                </p>
+            {isPremiumAccount ? (
+              <div className="mt-7 flex flex-col items-center gap-3">
+                <span className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/20 text-emerald-300 text-sm font-semibold border border-emerald-500/30">
+                  <HiCheck className="w-4 h-4" />
+                  {premiumAccountLabel || "Compte Premium actif"}
+                </span>
+                <button
+                  onClick={() => navigate("/create-event")}
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white text-sm font-semibold rounded-full transition-colors"
+                >
+                  Créer un événement Premium{" "}
+                  <HiArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="mt-6 flex flex-wrap justify-center items-center gap-3">
+                <span className="text-sm text-purple-300 line-through">
+                  2 500 XOF
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 text-white text-sm font-bold border border-white/20">
+                  Actuellement gratuit
+                </span>
+              </div>
+            )}
+          </div>
+        </section>
 
-                <div className="mt-2 space-y-2">
-                  <p className="text-xs font-medium text-gray-700">
-                    Durée du boost compte :
+        {/* ── CONTENU ── */}
+        <div className="max-w-xl mx-auto px-4 py-8 sm:py-10 space-y-10">
+
+          {/* ── BOOST ── */}
+          <section>
+            <h2 className="text-base font-bold text-gray-900 mb-1">
+              Active ton boost Premium
+            </h2>
+            <p className="text-sm text-gray-500 mb-5">
+              Choisis de booster tout ton compte ou un événement précis.
+            </p>
+
+            {/* Tab toggle */}
+            <div className="flex bg-gray-100 rounded-full p-1 mb-5">
+              <button
+                type="button"
+                onClick={() => setBoostTab("account")}
+                className={`flex-1 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 ${
+                  boostTab === "account"
+                    ? "bg-white text-purple-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🚀 Mon compte
+              </button>
+              <button
+                type="button"
+                onClick={() => setBoostTab("event")}
+                className={`flex-1 py-2.5 rounded-full text-sm font-semibold transition-all duration-200 ${
+                  boostTab === "event"
+                    ? "bg-white text-purple-700 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                🎉 Un événement
+              </button>
+            </div>
+
+            <AnimatePresence mode="wait">
+              {boostTab === "account" ? (
+                <motion.div
+                  key="account"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18 }}
+                  className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-5"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">
+                      Tous tes événements passent Premium
+                    </p>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Idéal si tu organises régulièrement des événements. Le
+                      boost s'applique à tous tes événements présents et
+                      futurs pendant la durée choisie.
+                    </p>
+                  </div>
+
+                  <div>
+                    <p className="text-xs font-semibold text-gray-700 mb-2">
+                      Durée du boost
+                    </p>
+                    <div className="flex gap-2">
+                      {accountDurationOptions.map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setAccountDuration(opt.value)}
+                          disabled={isPremiumAccount}
+                          className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-all ${
+                            accountDuration === opt.value
+                              ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                              : "bg-white text-gray-700 border-gray-200 hover:border-purple-300"
+                          } disabled:opacity-50 disabled:cursor-not-allowed`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {isPremiumAccount && (
+                    <p className="text-xs text-emerald-600 font-medium">
+                      ✅ {premiumAccountLabel}
+                    </p>
+                  )}
+
+                  <p className="text-[11px] text-gray-400">
+                    Activation gratuite pendant la phase de lancement.
                   </p>
-                  <div className="flex flex-wrap gap-2">
-                    {accountDurationOptions.map((opt) => (
+                </motion.div>
+              ) : (
+                <motion.div
+                  key="event"
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.18 }}
+                  className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm space-y-5"
+                >
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900 mb-1">
+                      Un événement précis passe Premium
+                    </p>
+                    <p className="text-xs text-gray-500 leading-relaxed">
+                      Parfait pour un anniversaire, un mariage ou un départ
+                      important, sans toucher au reste de ton compte.
+                    </p>
+                  </div>
+
+                  {isPremiumAccount ? (
+                    <p className="text-xs text-gray-500 bg-gray-50 rounded-xl p-3">
+                      Ton compte Premium est actif — tous tes événements en
+                      bénéficient déjà.
+                    </p>
+                  ) : loadingEvents ? (
+                    <p className="text-xs text-gray-500 animate-pulse">
+                      Chargement de tes événements...
+                    </p>
+                  ) : eventsError ? (
+                    <p className="text-xs text-red-500">{eventsError}</p>
+                  ) : events.length === 0 ? (
+                    <div className="text-center py-4 space-y-2">
+                      <p className="text-sm text-gray-500">
+                        Tu n&apos;as pas encore d&apos;événement.
+                      </p>
                       <button
-                        key={opt.value}
                         type="button"
-                        onClick={() => setAccountDuration(opt.value)}
-                        disabled={isPremiumAccount}
-                        className={`px-3 py-1.5 rounded-full border text-xs font-medium ${
-                          accountDuration === opt.value
-                            ? "bg-purple-600 text-white border-purple-600"
-                            : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                        } ${
-                          isPremiumAccount ? "opacity-60 cursor-not-allowed" : ""
-                        }`}
+                        onClick={() => navigate("/create-event")}
+                        className="text-sm font-semibold text-purple-600 hover:text-purple-700"
                       >
-                        {opt.label}
+                        Créer un premier événement →
                       </button>
-                    ))}
-                  </div>
-                </div>
-
-                {premiumAccountLabel && (
-                  <p className="mt-1 text-[11px] text-emerald-700">
-                    {premiumAccountLabel}
-                  </p>
-                )}
-
-                <div className="mt-3">
-                  <Button
-                    onClick={handleBoostAccount}
-                    disabled={loadingBoostAccount || isPremiumAccount}
-                    className="w-full text-sm font-semibold py-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {loadingBoostAccount
-                      ? "Activation en cours..."
-                      : isPremiumAccount
-                      ? "Compte déjà Premium"
-                      : "Booster mon compte en Premium"}
-                  </Button>
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Pendant la phase de lancement, ce boost de compte est
-                    gratuit, mais limité dans le temps.
-                  </p>
-                </div>
-              </div>
-
-              {/* Boost Événement Premium */}
-              <div className="bg-white rounded-2xl border border-gray-200 p-5 shadow-sm flex flex-col gap-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h3 className="text-sm font-semibold text-gray-900">
-                    Booster un événement Premium
-                  </h3>
-                  {isPremiumAccount && (
-                    <span className="inline-flex items-center px-2.5 py-1 rounded-full bg-gray-100 text-gray-600 text-[11px] font-medium border border-gray-200">
-                      Désactivé si compte Premium actif
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-gray-600">
-                  Parfait si tu veux booster uniquement un anniversaire, un
-                  mariage, un départ ou un challenge précis, sans tout ton
-                  compte.
-                </p>
-
-                {loadingEvents ? (
-                  <p className="text-xs text-gray-500">
-                    Chargement de tes événements...
-                  </p>
-                ) : eventsError ? (
-                  <p className="text-xs text-red-600">{eventsError}</p>
-                ) : events.length === 0 ? (
-                  <div className="text-xs text-gray-500 space-y-1">
-                    <p>Tu n&apos;as pas encore d&apos;événement à booster.</p>
-                    <button
-                      type="button"
-                      onClick={() => navigate("/create-event")}
-                      className="text-xs font-medium text-purple-600 hover:text-purple-700"
-                    >
-                      Créer un premier événement
-                    </button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2">
-                      <p className="text-xs font-medium text-gray-700">
-                        Choisir l&apos;événement à booster :
-                      </p>
-                      <select
-                        value={selectedEventId}
-                        onChange={(e) => setSelectedEventId(e.target.value)}
-                        disabled={isPremiumAccount}
-                        className="w-full rounded-lg border border-gray-300 px-3 py-2 text-xs text-gray-700 bg-white disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        <option value="">
-                          Sélectionne un événement dans ta liste
-                        </option>
-                        {events.map((ev) => (
-                          <option key={ev.id} value={ev.id}>
-                            {ev.title || "Événement sans titre"}
+                    </div>
+                  ) : (
+                    <>
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 mb-2">
+                          Choisir l&apos;événement
+                        </p>
+                        <select
+                          value={selectedEventId}
+                          onChange={(e) => setSelectedEventId(e.target.value)}
+                          className="w-full rounded-xl border border-gray-200 px-3 py-3 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-purple-300 focus:border-transparent"
+                        >
+                          <option value="">
+                            Sélectionne un événement...
                           </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <div className="mt-3 space-y-2">
-                      <p className="text-xs font-medium text-gray-700">
-                        Durée du boost événement :
-                      </p>
-                      <div className="flex flex-wrap gap-2">
-                        {eventDurationOptions.map((opt) => (
-                          <button
-                            key={opt.value}
-                            type="button"
-                            onClick={() => setEventDuration(opt.value)}
-                            disabled={!canUseEventBoost}
-                            className={`px-3 py-1.5 rounded-full border text-xs font-medium ${
-                              eventDuration === opt.value
-                                ? "bg-purple-600 text-white border-purple-600"
-                                : "bg-white text-gray-700 border-gray-200 hover:bg-gray-50"
-                            } ${
-                              !canUseEventBoost
-                                ? "opacity-60 cursor-not-allowed"
-                                : ""
-                            }`}
-                          >
-                            {opt.label}
-                          </button>
-                        ))}
+                          {events.map((ev) => (
+                            <option key={ev.id} value={ev.id}>
+                              {ev.title || "Événement sans titre"}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                    </div>
 
-                    <div className="mt-3">
-                      <Button
-                        onClick={handleBoostEvent}
-                        disabled={
-                          loadingBoostEvent ||
-                          !canUseEventBoost ||
-                          !selectedEventId
-                        }
-                        className="w-full text-sm font-semibold py-2.5 disabled:opacity-60 disabled:cursor-not-allowed"
-                      >
-                        {loadingBoostEvent
-                          ? "Activation en cours..."
-                          : "Booster cet événement en Premium"}
-                      </Button>
-                      <p className="mt-1 text-[11px] text-gray-500">
-                        L&apos;événement choisi bénéficiera des options Premium
-                        (plus de vidéos, options avancées, etc.) pendant la
-                        durée choisie.
+                      <div>
+                        <p className="text-xs font-semibold text-gray-700 mb-2">
+                          Durée du boost
+                        </p>
+                        <div className="flex gap-2">
+                          {eventDurationOptions.map((opt) => (
+                            <button
+                              key={opt.value}
+                              type="button"
+                              onClick={() => setEventDuration(opt.value)}
+                              className={`flex-1 py-3 rounded-xl border text-xs font-medium transition-all ${
+                                eventDuration === opt.value
+                                  ? "bg-purple-600 text-white border-purple-600 shadow-sm"
+                                  : "bg-white text-gray-700 border-gray-200 hover:border-purple-300"
+                              }`}
+                            >
+                              {opt.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <p className="text-[11px] text-gray-400">
+                        Activation gratuite pendant la phase de lancement.
                       </p>
-                    </div>
-                  </>
-                )}
-              </div>
+                    </>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* CTA desktop uniquement */}
+            <div className="hidden md:block mt-4">
+              <button
+                type="button"
+                onClick={handleMainCta}
+                disabled={isMainCtaDisabled}
+                className="w-full py-3.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600 text-white text-sm font-bold rounded-2xl shadow-lg shadow-purple-500/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {isMainCtaLoading
+                  ? "Activation en cours..."
+                  : boostTab === "account"
+                  ? isPremiumAccount
+                    ? "Compte déjà Premium ✓"
+                    : "Activer le boost compte — Gratuit"
+                  : "Activer le boost événement — Gratuit"}
+              </button>
             </div>
           </section>
 
-          {/* BENEFICES PREMIUM */}
-          <section className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-              Ce que tu gagnes avec Grega Play Premium
+          {/* ── BÉNÉFICES ── */}
+          <section>
+            <h2 className="text-base font-bold text-gray-900 mb-1">
+              Ce que tu gagnes avec Premium
             </h2>
-            <p className="text-sm text-gray-600 max-w-2xl">
-              Premium n’ajoute pas juste des options techniques. Il augmente
-              surtout l’impact émotionnel de ta vidéo finale, en te donnant plus
-              de matière et plus de contrôle sur le rendu.
+            <p className="text-sm text-gray-500 mb-5">
+              Premium augmente l&apos;impact émotionnel de ta vidéo finale.
             </p>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Plus de vidéos par événement
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Collecte bien plus de contributions pour les grands moments :
-                  anniversaires ronds, départs d’équipe, mariages, etc. Tu n’es
-                  plus limité à quelques clips.
-                </p>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Transitions et rythme plus fluides
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Accède à des transitions plus modernes et un montage plus
-                  fluide, pour une vidéo qui ressemble à un vrai mini-film
-                  collectif.
-                </p>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Musique signature Grega Play
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Ajoute automatiquement une musique signature sur l’intro et
-                  l’outro, pour un rendu plus professionnel et mémorable.
-                </p>
-              </div>
-
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Priorité sur la génération de la vidéo finale
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Tes événements Premium passent en priorité dans la file de
-                  génération, pour recevoir la vidéo finale plus rapidement.
-                </p>
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              {benefits.map((b) => (
+                <div
+                  key={b.title}
+                  className="bg-white rounded-2xl border border-gray-100 p-4 shadow-sm flex flex-col gap-3"
+                >
+                  <span
+                    className={`inline-flex items-center justify-center w-9 h-9 rounded-xl ${b.color}`}
+                  >
+                    <b.icon className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">
+                      {b.title}
+                    </p>
+                    <p className="mt-0.5 text-xs text-gray-500 leading-relaxed">
+                      {b.desc}
+                    </p>
+                  </div>
+                </div>
+              ))}
             </div>
           </section>
 
-          {/* COMPARATIF FREE VS PREMIUM */}
-          <section className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-              Gratuit ou Premium : que change concrètement Grega Play ?
+          {/* ── COMPARAISON ── */}
+          <section>
+            <h2 className="text-base font-bold text-gray-900 mb-1">
+              Gratuit ou Premium ?
             </h2>
-            <p className="text-sm text-gray-600 max-w-2xl">
-              La version gratuite est parfaite pour tester l’appli ou pour des
-              petits événements. Premium débloque tout le potentiel de Grega
-              Play pour les moments vraiment importants. Aujourd’hui, Premium est free*, mais pour une durée limitée.
+            <p className="text-sm text-gray-500 mb-5">
+              Un aperçu rapide de ce qui change concrètement.
             </p>
-
-            <div className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm">
-              <div className="grid grid-cols-3 text-xs sm:text-sm font-semibold bg-gray-50 border-b border-gray-200">
-                <div className="px-4 py-3 text-gray-600">Fonctionnalité</div>
-                <div className="px-4 py-3 text-center text-gray-700">
+            <div className="grid grid-cols-2 gap-3">
+              {/* Colonne Gratuit */}
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
+                <p className="text-sm font-bold text-gray-600 mb-4">
                   Gratuit
-                </div>
-                <div className="px-4 py-3 text-center text-purple-700">
-                  Premium (free*)
-                </div>
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    "5 vidéos max",
+                    "30 s par clip",
+                    "1 transition",
+                    "File standard",
+                    "Pas de musique",
+                    "Logo Grega Play",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <HiX className="w-4 h-4 text-gray-300 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs text-gray-500">{item}</span>
+                    </li>
+                  ))}
+                </ul>
               </div>
 
-              <div className="divide-y divide-gray-100 text-xs sm:text-sm">
-                <Row
-                  label="Nombre de vidéos par événement"
-                  free="Limité (5 vidéos)"
-                  premium="Illimité"
-                />
-                <Row
-                  label="Durée max par vidéo"
-                  free="30 s."
-                  premium="60 s."
-                />
-                <Row
-                  label="Transitions vidéo"
-                  free="1 transition standard"
-                  premium="Transitions au choix"
-                />
-                <Row
-                  label="Musique de fond"
-                  free="/"
-                  premium="Musique personnalisable"
-                />
-                <Row
-                  label="Watermark / logo"
-                  free="Logo Grega Play"
-                  premium="Logo + Options de personnalisation"
-                />
-                <Row
-                  label="Priorité de traitement"
-                  free="File standard"
-                  premium="File prioritaire"
-                />
-                <Row
-                  label="Support"
-                  free="Support standard par email"
-                  premium="Support prioritaire"
-                />
+              {/* Colonne Premium */}
+              <div className="bg-gradient-to-b from-purple-50 to-white rounded-2xl border border-purple-200 p-4 shadow-sm">
+                <p className="text-sm font-bold text-purple-700 mb-4">
+                  Premium ✨
+                </p>
+                <ul className="space-y-3">
+                  {[
+                    "Vidéos illimitées",
+                    "60 s par clip",
+                    "Transitions au choix",
+                    "File prioritaire",
+                    "Musique signature",
+                    "Personnalisation",
+                  ].map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <HiCheck className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                      <span className="text-xs text-gray-800 font-medium">
+                        {item}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </section>
 
-          {/* POUR QUI ? */}
-          <section className="space-y-4">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
-              Pour qui est fait Grega Play Premium ?
+          {/* ── POUR QUI ── */}
+          <section>
+            <h2 className="text-base font-bold text-gray-900 mb-5">
+              Pour qui ?
             </h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Familles et amis
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Anniversaires, remises de diplômes, naissances, mariages,
-                  surprises. Premium te permet de récupérer beaucoup plus de
-                  vidéos et de créer un souvenir fort, que la personne gardera
-                  longtemps.
-                </p>
+            <div className="space-y-3">
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-start gap-3">
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-pink-100 text-pink-600 flex-shrink-0">
+                  <HiUsers className="w-5 h-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Familles & amis
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500 leading-relaxed">
+                    Anniversaires, mariages, naissances — collectez le maximum
+                    de souvenirs vidéo sans limite.
+                  </p>
+                </div>
               </div>
-              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm">
-                <h3 className="text-sm font-semibold text-gray-900">
-                  Équipes, entreprises et associations
-                </h3>
-                <p className="mt-1 text-sm text-gray-600">
-                  Challenge entre collègues, départ d’un collaborateur, team
-                  building, messages de remerciement pour un client. Premium est
-                  adapté aux projets où l’image de ton équipe compte.
-                </p>
+              <div className="bg-white rounded-2xl border border-gray-200 p-4 shadow-sm flex items-start gap-3">
+                <span className="inline-flex items-center justify-center w-10 h-10 rounded-xl bg-indigo-100 text-indigo-600 flex-shrink-0">
+                  <HiBriefcase className="w-5 h-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">
+                    Équipes & entreprises
+                  </p>
+                  <p className="mt-0.5 text-xs text-gray-500 leading-relaxed">
+                    Départs, team building, challenges — Premium soigne
+                    l&apos;image et la qualité du rendu final.
+                  </p>
+                </div>
               </div>
             </div>
           </section>
 
-          {/* FAQ */}
-          <section className="space-y-4 pb-6">
-            <h2 className="text-lg sm:text-xl font-semibold text-gray-900">
+          {/* ── FAQ ── */}
+          <section className="pb-2">
+            <h2 className="text-base font-bold text-gray-900 mb-5">
               Questions fréquentes
             </h2>
             <div className="space-y-2">
-              <FaqItem question="Quelle est la différence principale entre la version gratuite et Premium ?">
-                La version gratuite te permet de découvrir Grega Play et de faire
-                des petits événements. Premium débloque un nombre plus élevé de
-                vidéos, plus de durée par clip, des transitions plus riches, la
-                musique signature et une priorité de traitement. 
-              </FaqItem>
-
-              <FaqItem question="Est-ce que je paye par événement ou par abonnement ?">
-                Tu peux choisir ton modèle : prix par événement Premium, abonnement mensuel pour
-                les gros utilisateurs, ou une combinaison des deux.
-              </FaqItem>
-
-              <FaqItem question="Que deviennent mes événements gratuits si je passe en Premium ?">
-                Tes événements gratuits restent accessibles comme avant. Passer en
-                Premium te permet simplement de créer de nouveaux événements avec
-                plus de possibilités, ou de passer certains événements clés en
-                mode Premium ou Boost.
-              </FaqItem>
-
-              <FaqItem question="Les participants doivent-ils payer quelque chose ?">
-                Non. Seul l’organisateur de l’événement décide ou non de passer
-                l’événement en mode Premium. Les invités n’ont rien à payer pour
-                participer ou envoyer leurs vidéos.
-              </FaqItem>
-
-              <FaqItem question="Puis-je revenir à la version gratuite après ?">
-                Oui. Tu peux très bien utiliser Premium sur certains événements
-                importants, puis revenir à des événements gratuits. Premium n’est
-                pas une obligation permanente.
-              </FaqItem>
-              
+              {faqItems.map((item, i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-2xl border border-gray-200 overflow-hidden shadow-sm"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setOpenFaq(openFaq === i ? null : i)}
+                    className="w-full flex items-center justify-between px-4 py-4 text-left gap-3"
+                  >
+                    <span className="text-sm font-medium text-gray-900">
+                      {item.question}
+                    </span>
+                    <HiChevronDown
+                      className={`w-4 h-4 text-gray-400 flex-shrink-0 transition-transform duration-200 ${
+                        openFaq === i ? "rotate-180" : ""
+                      }`}
+                    />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {openFaq === i && (
+                      <motion.div
+                        key="content"
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.2, ease: "easeInOut" }}
+                        className="overflow-hidden"
+                      >
+                        <p className="px-4 pb-4 text-sm text-gray-500 leading-relaxed border-t border-gray-100 pt-3">
+                          {item.answer}
+                        </p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              ))}
             </div>
           </section>
+        </div>
+
+        {/* ── CTA STICKY MOBILE ── */}
+        <div className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-4 pt-3 pb-6">
+          <button
+            type="button"
+            onClick={handleMainCta}
+            disabled={isMainCtaDisabled}
+            className="w-full py-4 bg-gradient-to-r from-purple-600 to-purple-700 text-white text-sm font-bold rounded-2xl shadow-lg shadow-purple-500/25 disabled:opacity-50 disabled:cursor-not-allowed active:scale-[0.98] transition-transform"
+          >
+            {isMainCtaLoading
+              ? "Activation en cours..."
+              : boostTab === "account"
+              ? isPremiumAccount
+                ? "Compte déjà Premium ✓"
+                : "Activer le boost compte — Gratuit"
+              : selectedEventId
+              ? "Activer le boost événement — Gratuit"
+              : "Sélectionne un événement d'abord"}
+          </button>
         </div>
       </div>
     </MainLayout>
   );
 };
-
-const Row = ({ label, free, premium }) => (
-  <div className="grid grid-cols-3">
-    <div className="px-4 py-3 text-gray-700 border-r border-gray-100">
-      {label}
-    </div>
-    <div className="px-4 py-3 text-center text-gray-600 border-r border-gray-100">
-      {free}
-    </div>
-    <div className="px-4 py-3 text-center text-purple-700 font-medium">
-      {premium}
-    </div>
-  </div>
-);
-
-const FaqItem = ({ question, children }) => (
-  <details className="bg-white rounded-2xl border border-gray-200 px-4 py-3 shadow-sm">
-    <summary className="text-sm font-medium text-gray-900 cursor-pointer">
-      {question}
-    </summary>
-    <p className="mt-2 text-sm text-gray-600">{children}</p>
-  </details>
-);
 
 export default PremiumPage;
