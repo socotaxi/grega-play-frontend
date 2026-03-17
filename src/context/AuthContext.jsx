@@ -25,13 +25,24 @@ export const AuthProvider = ({ children }) => {
 
     setProfileLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select(
-          "id, full_name, avatar_url, is_premium_account, is_premium, premium_account_expires_at"
-        )
-        .eq("id", userId)
-        .single();
+      const doQuery = () =>
+        supabase
+          .from("profiles")
+          .select(
+            "id, full_name, avatar_url, is_premium_account, is_premium, premium_account_expires_at"
+          )
+          .eq("id", userId)
+          .single();
+
+      let { data, error } = await doQuery();
+
+      // JWT expiré → on tente un refresh puis on relance la requête une fois
+      if (error?.message === "JWT expired" || error?.code === "PGRST303") {
+        const { error: refreshErr } = await supabase.auth.refreshSession();
+        if (!refreshErr) {
+          ({ data, error } = await doQuery());
+        }
+      }
 
       if (error) {
         console.error("Erreur chargement profil:", error);
@@ -88,13 +99,32 @@ export const AuthProvider = ({ children }) => {
         const { data, error } = await supabase.auth.getSession();
         if (error) console.error("Erreur récupération session:", error);
 
-        const currentSession = data?.session || null;
-        const currentUser = currentSession?.user || null;
+        let currentSession = data?.session ?? null;
+
+        // Si le token est expiré (ou expire dans moins de 30 s), on rafraîchit
+        // avant de faire quoi que ce soit pour éviter les erreurs "JWT expired".
+        if (currentSession) {
+          const now = Math.floor(Date.now() / 1000);
+          const expiresAt = currentSession.expires_at ?? 0;
+          if (expiresAt < now + 30) {
+            const { data: refreshed, error: refreshErr } =
+              await supabase.auth.refreshSession();
+            if (!refreshErr && refreshed?.session) {
+              currentSession = refreshed.session;
+            } else {
+              // Refresh token lui-même expiré → déconnexion propre
+              await supabase.auth.signOut({ scope: "local" });
+              currentSession = null;
+            }
+          }
+        }
+
+        const currentUser = currentSession?.user ?? null;
 
         setSession(currentSession);
         setUser(currentUser);
 
-        loadProfile(currentUser?.id || null);
+        loadProfile(currentUser?.id ?? null);
 
         // ✅ si déjà connecté et returnTo existe
         if (currentUser) {

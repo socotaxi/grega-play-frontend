@@ -13,11 +13,24 @@ const MainLayout = ({ children }) => {
   useEffect(() => {
     const fetchProfile = async () => {
       if (!user) { setProfile(null); return; }
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("full_name, avatar_url, is_premium_account, premium_account_expires_at, is_premium")
-        .eq("id", user.id)
-        .maybeSingle();
+
+      const doQuery = () =>
+        supabase
+          .from("profiles")
+          .select("full_name, avatar_url, is_premium_account, premium_account_expires_at, is_premium")
+          .eq("id", user.id)
+          .maybeSingle();
+
+      let { data, error } = await doQuery();
+
+      // JWT expiré → refresh puis retry
+      if (error?.message === "JWT expired" || error?.code === "PGRST303") {
+        const { error: refreshErr } = await supabase.auth.refreshSession();
+        if (!refreshErr) {
+          ({ data, error } = await doQuery());
+        }
+      }
+
       if (error) { console.error("Erreur chargement profil :", error.message); return; }
       if (!data) { console.warn("Aucun profil trouvé, redirection…"); navigate("/"); return; }
       setProfile(data);
