@@ -289,7 +289,7 @@ const PremiumPage = () => {
             ) : (
               <div className="mt-6 flex flex-wrap justify-center items-center gap-3">
                 <span className="text-sm text-purple-300 line-through">
-                  2 500 XOF
+                  5 USD
                 </span>
                 <span className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-full bg-white/10 text-white text-sm font-bold border border-white/20">
                   Actuellement gratuit
