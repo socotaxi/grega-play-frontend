@@ -40,7 +40,7 @@ const isValidEmail = (email) => {
 };
 
 const CreateEventPage = () => {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const navigate = useNavigate();
 
   const [formData, setFormData] = useState({
@@ -194,7 +194,7 @@ const CreateEventPage = () => {
           formData.participants,
           "",
           event,
-          user
+          profile || user
         );
       }
 

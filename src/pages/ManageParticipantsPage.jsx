@@ -12,7 +12,7 @@ import supabase from '../lib/supabaseClient';
 const ManageParticipantsPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
 
   const [event, setEvent] = useState(null);
   const [participants, setParticipants] = useState([]);   // invités ayant un compte + info has_submitted
@@ -197,7 +197,7 @@ const ManageParticipantsPage = () => {
 
     try {
       setSending(true);
-      await invitationService.addInvitations(eventId, emailList, message, event, user);
+      await invitationService.addInvitations(eventId, emailList, message, event, profile || user);
 
       // Recharger les invitations après envoi
       const updated = await invitationService.getInvitations(eventId);
