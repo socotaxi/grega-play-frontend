@@ -5,6 +5,7 @@ import supabase from "../lib/supabaseClient";
 /*  URL du backend (même logique que dans videoService.js)                    */
 /* -------------------------------------------------------------------------- */
 const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const API_KEY = import.meta.env.VITE_BACKEND_API_KEY;
 
 /* -------------------------------------------------------------------------- */
 /*               PARTIE 1 – Notifications PUSH (Web Push API)                 */
@@ -28,7 +29,9 @@ async function registerServiceWorker() {
 
 // Récupère la clé publique VAPID depuis le backend
 async function getPublicKey() {
-  const res = await fetch(`${API_BASE_URL}/api/notifications/public-key`);
+  const res = await fetch(`${API_BASE_URL}/api/notifications/public-key`, {
+    headers: { "x-api-key": API_KEY },
+  });
   if (!res.ok) {
     throw new Error("Impossible de récupérer la VAPID_PUBLIC_KEY");
   }
