@@ -292,6 +292,34 @@ const eventService = {
   async updateDeadline(eventId, newDeadline) {
     return this.updateEventDeadline(eventId, newDeadline);
   },
+
+  // ---------------------------------------------------------
+  // 🔔 Envoyer des rappels aux participants sans soumission
+  // ---------------------------------------------------------
+  async sendReminder(eventId) {
+    if (!API_BASE_URL || !API_KEY) {
+      throw new Error("Configuration backend manquante.");
+    }
+
+    const res = await fetch(`${API_BASE_URL}/api/events/${eventId}/remind`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": API_KEY,
+      },
+    });
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (_) {}
+
+    if (!res.ok) {
+      throw new Error(data.error || "Erreur lors de l'envoi des rappels.");
+    }
+
+    return data;
+  },
 };
 
 export default eventService;

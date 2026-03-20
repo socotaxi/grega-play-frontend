@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState, useRef } from "react";
 import supabase from "../lib/supabaseClient";
 import { getReturnTo, clearReturnTo } from "../utils/returnTo";
+import { subscribeToPush } from "../services/notificationService";
 
 const AuthContext = createContext(null);
 
@@ -162,6 +163,12 @@ export const AuthProvider = ({ children }) => {
 
     return () => listener?.subscription?.unsubscribe();
   }, []);
+
+  // Abonnement aux push notifications dès que l'utilisateur est connecté
+  useEffect(() => {
+    if (!user?.id) return;
+    subscribeToPush(user.id).catch(() => {});
+  }, [user?.id]);
 
   const safeProfile = profile ?? {};
 

@@ -4,6 +4,7 @@ import { useAuth } from "../../context/AuthContext";
 import supabase from "../../lib/supabaseClient";
 import AdminMenuLink from "./AdminMenuLink";
 import BottomNav from "./BottomNav";
+import NotificationBell from "./NotificationBell";
 
 const MainLayout = ({ children }) => {
   const { user } = useAuth();
@@ -72,6 +73,7 @@ const MainLayout = ({ children }) => {
             <AdminMenuLink />
             {user ? (
               <div className="flex items-center gap-2">
+                <NotificationBell />
                 <Link to="/profile" className="flex items-center gap-2 text-gray-600 hover:text-emerald-600 transition">
                   {profile?.avatar_url ? (
                     <img src={profile.avatar_url} className="w-8 h-8 rounded-full object-cover" alt="avatar" />
@@ -101,15 +103,18 @@ const MainLayout = ({ children }) => {
 
           {/* AVATAR mobile (header) */}
           {user && (
-            <Link to="/profile" className="lg:hidden flex items-center gap-2">
-              {profile?.avatar_url ? (
-                <img src={profile.avatar_url} className="w-8 h-8 rounded-full object-cover" alt="avatar" />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-sm font-semibold text-brand-600">
-                  {(displayName || "G").charAt(0).toUpperCase()}
-                </div>
-              )}
-            </Link>
+            <div className="lg:hidden flex items-center gap-1">
+              <NotificationBell />
+              <Link to="/profile" className="flex items-center gap-2">
+                {profile?.avatar_url ? (
+                  <img src={profile.avatar_url} className="w-8 h-8 rounded-full object-cover" alt="avatar" />
+                ) : (
+                  <div className="w-8 h-8 rounded-full bg-brand-100 flex items-center justify-center text-sm font-semibold text-brand-600">
+                    {(displayName || "G").charAt(0).toUpperCase()}
+                  </div>
+                )}
+              </Link>
+            </div>
           )}
 
           {/* CTA mobile non connecté */}

@@ -1,5 +1,7 @@
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import supabase from '../../lib/supabaseClient';
 
 const HomeIcon = ({ active }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
@@ -25,6 +27,12 @@ const ProfileIcon = ({ active }) => (
   </svg>
 );
 
+const BellIcon = ({ active }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+  </svg>
+);
+
 const LoginIcon = ({ active }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 2.2 : 1.8}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M11 16l-4-4m0 0l4-4m-4 4h14m-5 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h7a3 3 0 013 3v1" />
@@ -47,6 +55,34 @@ const BottomNav = () => {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const is = (path) => pathname === path;
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const load = async () => {
+      const { count } = await supabase
+        .from('notifications')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', user.id)
+        .eq('read', false);
+      setUnreadCount(count ?? 0);
+    };
+
+    load();
+
+    const channel = supabase
+      .channel(`bottomnav-notif:${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => setUnreadCount((c) => c + 1)
+      )
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}` },
+        () => load()
+      )
+      .subscribe();
+
+    return () => supabase.removeChannel(channel);
+  }, [user]);
 
   return (
     <nav
@@ -62,6 +98,21 @@ const BottomNav = () => {
               active={is('/dashboard')}
               icon={<DashboardIcon active={is('/dashboard')} />}
             />
+
+            <Link
+              to="/notifications"
+              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-colors relative ${is('/notifications') ? 'text-brand-600' : 'text-gray-400'}`}
+            >
+              <div className="relative">
+                <BellIcon active={is('/notifications')} />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </span>
+                )}
+              </div>
+              <span className="text-[10px] font-medium">Notifs</span>
+            </Link>
 
             <Link
               to="/create-event"

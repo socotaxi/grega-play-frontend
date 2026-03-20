@@ -24,6 +24,8 @@ const EventDetailsPage = () => {
   const [newDeadline, setNewDeadline] = useState("");
   const [updatingVisibility, setUpdatingVisibility] = useState(false);
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
+  const [pendingCount, setPendingCount] = useState(null);
+  const [sendingReminder, setSendingReminder] = useState(false);
 
   const isPremiumAccount = useMemo(() => {
     if (!profile) return false;
@@ -44,6 +46,20 @@ const EventDetailsPage = () => {
     try {
       const data = await eventService.getEventDetails(id);
       setEvent(data);
+
+      // Charge le nombre de participants en attente (owner uniquement)
+      if (user && data.user_id === user.id) {
+        try {
+          const { count } = await supabase
+            .from("event_participants")
+            .select("id", { count: "exact", head: true })
+            .eq("event_id", id)
+            .eq("has_submitted", false);
+          setPendingCount(count ?? 0);
+        } catch (_) {
+          // non bloquant
+        }
+      }
 
       setNewDeadline(data.deadline ? data.deadline.split("T")[0] : "");
 
@@ -248,6 +264,27 @@ const goRegister = useCallback(() => {
     }
   };
 
+  const handleSendReminder = async () => {
+    if (!event || !user) return;
+    setSendingReminder(true);
+    try {
+      const result = await eventService.sendReminder(event.id);
+      if (result.count === 0) {
+        toast.info("Tous les participants ont déjà soumis une vidéo !");
+      } else {
+        toast.success(
+          `Rappel envoyé à ${result.sent} participant${result.sent > 1 ? "s" : ""} en attente.`
+        );
+        setPendingCount(0);
+      }
+    } catch (err) {
+      console.error("Erreur envoi rappel:", err);
+      toast.error("Impossible d'envoyer les rappels. Réessaie plus tard.");
+    } finally {
+      setSendingReminder(false);
+    }
+  };
+
   const participantsCount = useMemo(() => {
     return event?.participants_count ?? null;
   }, [event]);
@@ -383,6 +420,24 @@ const goRegister = useCallback(() => {
                     Inviter des participants
                   </Button>
                 </Link>
+              )}
+
+              {isOwner && pendingCount > 0 && (
+                <button
+                  type="button"
+                  onClick={handleSendReminder}
+                  disabled={sendingReminder}
+                  className={`w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-colors ${
+                    sendingReminder
+                      ? "bg-amber-50 text-amber-400 border-amber-200 cursor-not-allowed"
+                      : "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
+                  }`}
+                >
+                  <span>🔔</span>
+                  {sendingReminder
+                    ? "Envoi en cours..."
+                    : `Relancer ${pendingCount} participant${pendingCount > 1 ? "s" : ""}`}
+                </button>
               )}
 
               {!user ? (
