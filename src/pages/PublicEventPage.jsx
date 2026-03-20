@@ -88,17 +88,19 @@ const PublicEventPage = () => {
       setError(null);
 
       try {
-        const { data, error } = await supabase.rpc("get_event_by_public_code", {
-          p_code: publicCode,
-        });
+        const { data, error } = await supabase
+          .from("events")
+          .select("*")
+          .eq("public_code", publicCode)
+          .maybeSingle();
 
         if (error) {
-          console.error("Erreur RPC:", error);
+          console.error("Erreur chargement event public:", error);
           setError("Impossible de charger l'événement.");
-        } else if (!data || data.length === 0) {
+        } else if (!data) {
           setError("Événement introuvable ou expiré.");
         } else {
-          setEvent(data[0]);
+          setEvent(data);
         }
       } catch (err) {
         console.error("Erreur inattendue:", err);
