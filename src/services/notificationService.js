@@ -92,6 +92,7 @@ export async function subscribeToPush(userId) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "x-api-key": API_KEY,
     },
     body: JSON.stringify({
       userId,
