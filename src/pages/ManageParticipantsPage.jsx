@@ -62,46 +62,19 @@ const ManageParticipantsPage = () => {
       return result;
     }
 
-    // Emails uniques (normalisés)
-    const rawEmails = invList
-      .map((inv) => (typeof inv.email === 'string' ? inv.email.trim() : ''))
-      .filter((e) => e !== '');
-
-    const uniqueEmails = Array.from(new Set(rawEmails));
-
-    if (uniqueEmails.length === 0) {
-      return result;
-    }
-
-    // 1) Récupérer les profils pour ces emails
-    const { data: profiles, error: profilesError } = await supabase
-      .from('profiles')
-      .select('id, email')
-      .in('email', uniqueEmails);
-
-    if (profilesError) {
-      console.error('Erreur chargement profils pour participants :', profilesError);
-      return result;
-    }
-
-    const profilesByEmail = {};
-    (profiles || []).forEach((p) => {
-      if (typeof p.email === 'string') {
-        profilesByEmail[p.email.trim()] = p;
-      }
-    });
-
-    const profileIds = (profiles || []).map((p) => p.id);
+    // 1) Récupérer les vidéos pour les invités ayant accepté (accepted_user_id présent)
+    const acceptedUserIds = invList
+      .map((inv) => inv.accepted_user_id)
+      .filter(Boolean);
 
     let videosByUserId = new Set();
 
-    // 2) Récupérer les vidéos pour ces profils sur cet event
-    if (profileIds.length > 0) {
+    if (acceptedUserIds.length > 0) {
       const { data: videos, error: videosError } = await supabase
         .from('videos')
         .select('id, user_id')
         .eq('event_id', eventId)
-        .in('user_id', profileIds);
+        .in('user_id', acceptedUserIds);
 
       if (videosError) {
         console.error('Erreur chargement vidéos pour participants :', videosError);
@@ -113,14 +86,13 @@ const ManageParticipantsPage = () => {
     const byEmail = {};
     const participantsList = [];
 
-    // 3) Construire le statut par email + la liste des participants
+    // 2) Construire le statut par email + la liste des participants
     for (const inv of invList) {
       const email = typeof inv.email === 'string' ? inv.email.trim() : '';
       if (!email) continue;
 
-      const profile = profilesByEmail[email] || null;
-      const hasAccount = !!profile;
-      const hasSubmitted = !!(profile && videosByUserId.has(profile.id));
+      const hasAccount = !!inv.accepted_user_id;
+      const hasSubmitted = !!(inv.accepted_user_id && videosByUserId.has(inv.accepted_user_id));
 
       byEmail[email] = {
         hasAccount,
@@ -130,7 +102,7 @@ const ManageParticipantsPage = () => {
       if (hasAccount) {
         participantsList.push({
           ...inv,
-          profile_id: profile.id,
+          profile_id: inv.accepted_user_id,
           has_submitted: hasSubmitted,
         });
       }
