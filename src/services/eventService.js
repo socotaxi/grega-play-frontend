@@ -64,12 +64,22 @@ const eventService = {
   // 🔵 Méthode utilisée par EventDetailsPage.jsx
   // ---------------------------------------------------------
   async getEventDetails(eventId) {
-    try {
-      return await this.getEventById(eventId);
-    } catch (err) {
-      console.warn("getEventById a échoué, fallback sur getEvent :", err?.message || err);
+    if (!API_BASE_URL || !API_KEY) {
+      // Fallback direct Supabase si backend non configuré
       return this.getEvent(eventId);
     }
+
+    const res = await fetch(`${API_BASE_URL}/api/events/${eventId}`, {
+      headers: { "x-api-key": API_KEY },
+    });
+
+    const json = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      throw new Error(json.error || "Impossible de charger l'événement");
+    }
+
+    return json.event;
   },
 
   // ---------------------------------------------------------
