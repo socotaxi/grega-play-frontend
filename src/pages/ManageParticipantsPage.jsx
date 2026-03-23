@@ -6,7 +6,6 @@ import Loading from '../components/ui/Loading';
 import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
-import invitationService from '../services/invitationService';
 import supabase from '../lib/supabaseClient';
 
 const ManageParticipantsPage = () => {
@@ -15,8 +14,6 @@ const ManageParticipantsPage = () => {
   const { user } = useAuth();
 
   const [event, setEvent] = useState(null);
-  const [invitations, setInvitations] = useState([]);
-  const [invitationStatusByEmail, setInvitationStatusByEmail] = useState({});
   const [videoCount, setVideoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -33,40 +30,12 @@ const ManageParticipantsPage = () => {
     ? event.status === 'done' || event.status === 'canceled' || isEventExpired(event)
     : false;
 
-  const computeStatusByEmail = async (invList) => {
-    const acceptedUserIds = invList.map((inv) => inv.accepted_user_id).filter(Boolean);
-    let videosByUserId = new Set();
-
-    if (acceptedUserIds.length > 0) {
-      const { data: videos } = await supabase
-        .from('videos')
-        .select('user_id')
-        .eq('event_id', eventId)
-        .in('user_id', acceptedUserIds);
-      if (videos) videosByUserId = new Set(videos.map((v) => v.user_id));
-    }
-
-    const byEmail = {};
-    for (const inv of invList) {
-      const email = typeof inv.email === 'string' ? inv.email.trim() : '';
-      if (!email) continue;
-      byEmail[email] = {
-        hasAccount: !!inv.accepted_user_id,
-        hasSubmitted: !!(inv.accepted_user_id && videosByUserId.has(inv.accepted_user_id)),
-      };
-    }
-    return byEmail;
-  };
-
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
         const eventData = await eventService.getEvent(eventId);
         setEvent(eventData);
-        const invList = (await invitationService.getInvitations(eventId)) || [];
-        setInvitations(invList);
-        setInvitationStatusByEmail(await computeStatusByEmail(invList));
         const { count } = await supabase
           .from('videos')
           .select('id', { count: 'exact', head: true })
@@ -192,55 +161,21 @@ const ManageParticipantsPage = () => {
             </Button>
           </div>
 
-          {/* Carte Participants */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
-            <div className="px-5 pt-5 pb-3 border-b border-gray-100 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-gray-900">
-                Invités
-                <span className="ml-2 text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                  {videoCount} vidéo{videoCount > 1 ? 's' : ''} soumise{videoCount > 1 ? 's' : ''}
-                </span>
-              </h2>
-              {invitations.length > 0 && (
-                <button
-                  onClick={handleRemindPending}
-                  disabled={reminding || isEventExpired(event)}
-                  className="text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 font-medium"
-                >
-                  {reminding ? 'Envoi…' : '🔔 Relancer'}
-                </button>
-              )}
+          {/* Compteur vidéos */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200 px-5 py-4 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-900">Vidéos soumises</p>
+              <p className="text-xs text-gray-400 mt-0.5">Participants ayant envoyé leur clip</p>
             </div>
-
-            <div className="px-5 py-4">
-              {invitations.length === 0 ? (
-                <p className="text-sm text-gray-400 py-2">Aucun invité pour le moment.</p>
-              ) : (
-                <ul className="divide-y divide-gray-100">
-                  {invitations.map((inv) => {
-                    const email = typeof inv.email === 'string' ? inv.email.trim() : '';
-                    const status = invitationStatusByEmail[email] || {};
-                    return (
-                      <li key={inv.id || email} className="py-3 flex items-center justify-between gap-2">
-                        <span className="text-sm text-gray-800 truncate">{email}</span>
-                        {status.hasSubmitted ? (
-                          <span className="shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full bg-purple-100 text-purple-700">
-                            Vidéo envoyée
-                          </span>
-                        ) : status.hasAccount ? (
-                          <span className="shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full bg-blue-50 text-blue-600">
-                            Inscrit
-                          </span>
-                        ) : (
-                          <span className="shrink-0 text-[11px] font-medium px-2.5 py-1 rounded-full bg-gray-100 text-gray-500">
-                            En attente
-                          </span>
-                        )}
-                      </li>
-                    );
-                  })}
-                </ul>
-              )}
+            <div className="flex items-center gap-3">
+              <span className="text-2xl font-bold text-indigo-600">{videoCount}</span>
+              <button
+                onClick={handleRemindPending}
+                disabled={reminding || isEventExpired(event)}
+                className="text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 font-medium"
+              >
+                {reminding ? 'Envoi…' : '🔔 Relancer'}
+              </button>
             </div>
           </div>
 
