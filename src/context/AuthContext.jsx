@@ -125,7 +125,7 @@ export const AuthProvider = ({ children }) => {
         setSession(currentSession);
         setUser(currentUser);
 
-        loadProfile(currentUser?.id ?? null);
+        await loadProfile(currentUser?.id ?? null);
 
         // ✅ si déjà connecté et returnTo existe
         if (currentUser) {
