@@ -81,7 +81,20 @@ const NotificationBell = () => {
         prev.map((n) => (n.id === notif.id ? { ...n, read: true } : n))
       );
     }
-    if (notif.link) navigate(notif.link);
+    if (notif.link) {
+      try {
+        const url = new URL(notif.link);
+        // Même origine → navigation interne
+        if (url.origin === window.location.origin) {
+          navigate(url.pathname + url.search + url.hash);
+        } else {
+          window.location.href = notif.link;
+        }
+      } catch {
+        // Chemin relatif
+        navigate(notif.link);
+      }
+    }
   };
 
   const markAllRead = async () => {
