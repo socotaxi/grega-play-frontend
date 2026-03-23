@@ -1,43 +1,12 @@
-import { useEffect, useState, useMemo } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useMemo } from "react";
+import { Link } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
-import supabase from "../../lib/supabaseClient";
 import AdminMenuLink from "./AdminMenuLink";
 import BottomNav from "./BottomNav";
 import NotificationBell from "./NotificationBell";
 
 const MainLayout = ({ children }) => {
-  const { user } = useAuth();
-  const [profile, setProfile] = useState(null);
-  const navigate = useNavigate();
-
-  useEffect(() => {
-    const fetchProfile = async () => {
-      if (!user) { setProfile(null); return; }
-
-      const doQuery = () =>
-        supabase
-          .from("profiles")
-          .select("full_name, avatar_url, is_premium_account, premium_account_expires_at, is_premium")
-          .eq("id", user.id)
-          .maybeSingle();
-
-      let { data, error } = await doQuery();
-
-      // JWT expiré → refresh puis retry
-      if (error?.message === "JWT expired" || error?.code === "PGRST303") {
-        const { error: refreshErr } = await supabase.auth.refreshSession();
-        if (!refreshErr) {
-          ({ data, error } = await doQuery());
-        }
-      }
-
-      if (error) { console.error("Erreur chargement profil :", error.message); return; }
-      if (!data) { console.warn("Aucun profil trouvé, redirection…"); navigate("/"); return; }
-      setProfile(data);
-    };
-    fetchProfile();
-  }, [user, navigate]);
+  const { user, profile } = useAuth();
 
   const isPremiumAccount = useMemo(() => {
     if (!profile) return false;

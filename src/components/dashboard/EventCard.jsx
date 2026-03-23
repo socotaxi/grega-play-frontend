@@ -1,4 +1,3 @@
-import React from 'react';
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
@@ -55,6 +54,12 @@ const EventCard = ({
   const isEffectivePremiumEvent = event.is_premium_event === true || (isPremiumAccount && isOwner);
 
   const publicUrl = event.public_code ? `${window.location.origin}/e/${event.public_code}` : '';
+  // URL de partage WhatsApp : pointe vers le backend (/share/e/:code) pour déclencher
+  // le crawler OG de WhatsApp (image + titre + description). L'utilisateur est ensuite
+  // redirigé automatiquement vers l'app.
+  const whatsappShareUrl = event.public_code && import.meta.env.VITE_BACKEND_URL
+    ? `${import.meta.env.VITE_BACKEND_URL}/share/e/${event.public_code}`
+    : publicUrl;
   const creatorName = event.owner_name || ownerNamesByUserId[event.user_id] || 'Un organisateur';
 
   const stats = eventStats[event.id];
@@ -133,7 +138,7 @@ const EventCard = ({
                         type="button"
                         onClick={() =>
                           window.open(
-                            `https://wa.me/?text=${encodeURIComponent(`Participe à mon événement Grega Play : ${publicUrl}`)}`,
+                            `https://wa.me/?text=${encodeURIComponent(`Participe à mon événement Grega Play : ${whatsappShareUrl}`)}`,
                             '_blank'
                           )
                         }

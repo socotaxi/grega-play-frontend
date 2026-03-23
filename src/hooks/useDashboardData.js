@@ -104,17 +104,21 @@ export const useDashboardData = () => {
     const loadStats = async () => {
       if (!sortedEvents.length) { setEventStats({}); return; }
       try {
-        const entries = await Promise.all(
-          sortedEvents.map(async (evt) => {
-            try {
-              const stats = await eventService.getEventStats(evt.id);
-              return [evt.id, stats];
-            } catch (err) {
-              console.error('Erreur stats event', evt.id, err);
-              return [evt.id, null];
-            }
-          })
-        );
+        const eventIds = sortedEvents.map((e) => e.id);
+        const [{ data: invRows }, { data: vidRows }] = await Promise.all([
+          supabase.from('invitations').select('event_id').in('event_id', eventIds),
+          supabase.from('videos').select('event_id').in('event_id', eventIds),
+        ]);
+        const invByEvent = {};
+        const vidByEvent = {};
+        (invRows || []).forEach(({ event_id }) => { invByEvent[event_id] = (invByEvent[event_id] || 0) + 1; });
+        (vidRows || []).forEach(({ event_id }) => { vidByEvent[event_id] = (vidByEvent[event_id] || 0) + 1; });
+        const entries = sortedEvents.map((e) => {
+          const totalInvitations = invByEvent[e.id] || 0;
+          const totalWithVideo = vidByEvent[e.id] || 0;
+          const totalPending = Math.max(0, totalInvitations - totalWithVideo);
+          return [e.id, { totalInvitations, totalWithVideo, totalPending }];
+        });
         setEventStats(Object.fromEntries(entries));
       } catch (err) {
         console.error('Erreur chargement stats events:', err);
@@ -134,7 +138,10 @@ export const useDashboardData = () => {
       }
       const currentCaps = capsByEventIdRef.current || {};
       const currentLoading = capsLoadingByEventIdRef.current || {};
+      // Les capabilities ne sont utiles que pour les événements dont l'utilisateur n'est PAS le propriétaire
+      // (bouton "Envoyer ma vidéo", badges "Vidéo envoyée" / "Limite atteinte")
       const toLoad = sortedEvents
+        .filter((e) => e.user_id !== user?.id)
         .map((e) => e.id)
         .filter((id) => id && !(id in currentCaps) && currentLoading[id] !== true);
       if (toLoad.length === 0) return;
