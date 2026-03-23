@@ -88,19 +88,14 @@ const PublicEventPage = () => {
       setError(null);
 
       try {
-        const { data, error } = await supabase
-          .from("events")
-          .select("*")
-          .eq("public_code", publicCode)
-          .maybeSingle();
+        const backendUrl = import.meta.env.VITE_BACKEND_URL;
+        const res = await fetch(`${backendUrl}/api/public/event/${publicCode}`);
+        const json = await res.json();
 
-        if (error) {
-          console.error("Erreur chargement event public:", error);
-          setError("Impossible de charger l'événement.");
-        } else if (!data) {
-          setError("Événement introuvable ou expiré.");
+        if (!res.ok) {
+          setError(json.error || "Événement introuvable ou expiré.");
         } else {
-          setEvent(data);
+          setEvent(json.event);
         }
       } catch (err) {
         console.error("Erreur inattendue:", err);
