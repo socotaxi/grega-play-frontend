@@ -17,7 +17,6 @@ const ManageParticipantsPage = () => {
   const [videoCount, setVideoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [reminding, setReminding] = useState(false);
 
   const isEventExpired = useCallback((evt) => {
     if (!evt?.deadline) return false;
@@ -71,31 +70,6 @@ const ManageParticipantsPage = () => {
     } else {
       await navigator.clipboard.writeText(url);
       toast.success('Lien copié !');
-    }
-  };
-
-  const handleRemindPending = async () => {
-    if (!event || isEventExpired(event)) return;
-    const backendUrl = import.meta.env.VITE_BACKEND_URL;
-    const apiKey = import.meta.env.VITE_BACKEND_API_KEY;
-    if (!backendUrl || !apiKey) { toast.error('Configuration backend manquante.'); return; }
-    try {
-      setReminding(true);
-      toast.info('Envoi des relances…');
-      const res = await fetch(`${backendUrl}/api/events/${eventId}/remind`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) { toast.error(data.error || 'Erreur relance'); return; }
-      const count = data.remindersSent ?? 0;
-      count === 0
-        ? toast.info('Tous les participants ont déjà envoyé une vidéo.')
-        : toast.success(`Relance envoyée à ${count} participant(s).`);
-    } catch {
-      toast.error('Erreur lors de la relance');
-    } finally {
-      setReminding(false);
     }
   };
 
@@ -167,16 +141,7 @@ const ManageParticipantsPage = () => {
               <p className="text-sm font-semibold text-gray-900">Vidéos soumises</p>
               <p className="text-xs text-gray-400 mt-0.5">Participants ayant envoyé leur clip</p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="text-2xl font-bold text-indigo-600">{videoCount}</span>
-              <button
-                onClick={handleRemindPending}
-                disabled={reminding || isEventExpired(event)}
-                className="text-xs text-indigo-600 hover:text-indigo-800 disabled:text-gray-400 font-medium"
-              >
-                {reminding ? 'Envoi…' : '🔔 Relancer'}
-              </button>
-            </div>
+            <span className="text-2xl font-bold text-indigo-600">{videoCount}</span>
           </div>
 
         </div>
