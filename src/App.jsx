@@ -33,6 +33,7 @@ import CheckoutPremiumPage from "./pages/CheckoutPremiumPage";
 // ✅ NOUVEAU : pages légales
 import CguPage from "./pages/CguPage";
 import ConfidentialitePage from "./pages/ConfidentialitePage";
+import NotificationsPage from "./pages/NotificationsPage";
 
 const App = () => {
   return (
@@ -75,6 +76,7 @@ const App = () => {
         {/* ✅ NOUVELLES ROUTES : CGU + Politique de confidentialité */}
         <Route path="/cgu" element={<CguPage />} />
         <Route path="/confidentialite" element={<ConfidentialitePage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
       </Routes>
     </>
   );
