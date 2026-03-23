@@ -19,7 +19,7 @@ function PublicFinalVideoPage() {
 
         if (!response.ok) {
           const body = await response.json().catch(() => ({}));
-          throw new Error(body.message || "Impossible de charger la vidéo finale");
+          throw new Error(body.message || body.error || "Impossible de charger la vidéo finale");
         }
 
         const json = await response.json();
