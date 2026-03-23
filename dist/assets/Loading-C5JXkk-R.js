@@ -1,0 +1,1 @@
+import{j as e}from"./index-CqY2qFIB.js";const n=({fullPage:r=!1})=>{const s=r?"flex justify-center items-center min-h-screen":"flex justify-center items-center py-8";return e.jsx("div",{className:s,children:e.jsx("div",{className:"animate-spin h-10 w-10 border-4 border-indigo-500 border-t-transparent rounded-full"})})};export{n as L};

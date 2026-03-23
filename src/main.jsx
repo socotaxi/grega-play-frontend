@@ -6,8 +6,8 @@ import App from "./App";
 import "./index.css";
 import { AuthProvider } from "./context/AuthContext";
 
-// ✅ Import service worker registration
-import * as serviceWorkerRegistration from "./serviceWorkerRegistration";
+// Le service worker est enregistré automatiquement par vite-plugin-pwa (registerType: 'autoUpdate')
+// L'enregistrement manuel a été supprimé pour éviter le conflit avec /service-worker.js
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
@@ -18,6 +18,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     </BrowserRouter>
   </React.StrictMode>
 );
-
-// ✅ Enregistre le service worker pour activer le mode PWA
-serviceWorkerRegistration.register();
