@@ -499,6 +499,39 @@ const emailService = {
   },
 
   /**
+   * Envoie des invitations simplifiées (lien public, sans token ni enregistrement BDD)
+   */
+  async sendSimpleInvitations(emails, event, organizer) {
+    const appBaseUrl =
+      import.meta.env.VITE_APP_BASE_URL ||
+      (typeof window !== "undefined" ? window.location.origin : "");
+    const publicLink = `${appBaseUrl}/e/${event.public_code}`;
+    const organizerName = organizer?.full_name || "L’organisateur";
+    const subject = this.generateEmailSubject(event.title || "un événement", organizerName);
+    const html = this.generateInvitationEmailTemplate({
+      eventTitle: event.title,
+      eventDescription: event.description,
+      organizerName,
+      invitationLink: publicLink,
+      eventDeadline: event.deadline,
+      eventTheme: event.theme,
+      eventImageUrl: event.media_url || event.cover_url,
+    });
+
+    const results = { success: [], failed: [] };
+    for (const email of emails) {
+      try {
+        await this.sendInvitationEmail({ to: email, subject, html, eventId: event.id });
+        results.success.push(email);
+        await new Promise((r) => setTimeout(r, 100));
+      } catch (e) {
+        results.failed.push({ email, error: e.message });
+      }
+    }
+    return results;
+  },
+
+  /**
    * Envoi du message de contact vers /api/email/contact
    */
   async sendContactMessage(payload) {

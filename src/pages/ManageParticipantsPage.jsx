@@ -7,6 +7,7 @@ import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import invitationService from '../services/invitationService';
+import emailService from '../services/emailService';
 import supabase from '../lib/supabaseClient';
 
 const ManageParticipantsPage = () => {
@@ -24,6 +25,8 @@ const ManageParticipantsPage = () => {
   const [message, setMessage] = useState('');
   const [error, setError] = useState(null);
   const [reminding, setReminding] = useState(false); // état relance
+  const [simpleEmails, setSimpleEmails] = useState('');
+  const [simpleSending, setSimpleSending] = useState(false);
 
   // ✅ Détection expiration (deadline dépassée)
   const isEventExpired = useCallback((evt) => {
@@ -190,6 +193,61 @@ const ManageParticipantsPage = () => {
       toast.error(err.message || "Erreur lors de l'envoi des invitations");
     } finally {
       setSending(false);
+    }
+  };
+
+  // Option D — Partage natif (Web Share API)
+  const handleNativeShare = async () => {
+    if (!event) return;
+    const appBaseUrl = import.meta.env.VITE_APP_BASE_URL || window.location.origin;
+    const publicLink = `${appBaseUrl}/e/${event.public_code}`;
+    const organizerName = profile?.full_name || 'quelqu\'un';
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: event.title,
+          text: `${organizerName} vous invite à participer à "${event.title}" sur Grega Play`,
+          url: publicLink,
+        });
+      } catch (e) {
+        if (e.name !== 'AbortError') toast.error("Impossible d'ouvrir le partage");
+      }
+    } else {
+      await navigator.clipboard.writeText(publicLink);
+      toast.success('Lien copié dans le presse-papier !');
+    }
+  };
+
+  // Option C — Email simplifié (lien public, sans token)
+  const handleSimpleInvite = async (e) => {
+    e.preventDefault();
+    if (isInvitationClosed) {
+      toast.error("Les invitations sont closes pour cet événement.");
+      return;
+    }
+    const emailList = simpleEmails
+      .split(/[,\n]+/)
+      .map((em) => em.trim())
+      .filter(Boolean);
+    if (emailList.length === 0) {
+      toast.info('Veuillez entrer au moins un email');
+      return;
+    }
+    try {
+      setSimpleSending(true);
+      const results = await emailService.sendSimpleInvitations(emailList, event, profile || user);
+      if (results.failed.length === 0) {
+        toast.success(`Email(s) envoyé(s) à ${results.success.length} personne(s)`);
+      } else {
+        toast.warning(`${results.success.length} envoyé(s), ${results.failed.length} échoué(s)`);
+      }
+      setSimpleEmails('');
+    } catch (err) {
+      console.error('Erreur envoi email simple:', err);
+      toast.error("Erreur lors de l'envoi");
+    } finally {
+      setSimpleSending(false);
     }
   };
 
@@ -458,6 +516,69 @@ const ManageParticipantsPage = () => {
                   })}
                 </ul>
               )}
+            </div>
+          </div>
+
+          {/* Carte Partage rapide — Option D (natif) + Option C (email simple) */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-200">
+            <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+              <h2 className="text-sm font-semibold text-gray-900">Partage rapide</h2>
+              <p className="text-xs text-gray-500 mt-1">
+                Partage le lien public de l&apos;événement sans créer de compte pour les invités.
+              </p>
+            </div>
+
+            <div className="px-5 py-4 space-y-5">
+              {/* Option D — Partage natif */}
+              <div>
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide mb-2">
+                  Via WhatsApp, SMS, Messenger…
+                </p>
+                <Button
+                  type="button"
+                  onClick={handleNativeShare}
+                  disabled={isInvitationClosed}
+                  variant="secondary"
+                  className="w-full sm:w-auto text-sm py-2.5 px-5"
+                >
+                  📤 Partager le lien
+                </Button>
+              </div>
+
+              <hr className="border-gray-100" />
+
+              {/* Option C — Email simple */}
+              <form onSubmit={handleSimpleInvite} className="space-y-3">
+                <p className="text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                  Par email (lien direct, sans inscription préalable)
+                </p>
+                {isInvitationClosed && (
+                  <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-3 py-2 rounded-xl text-xs">
+                    Les invitations sont closes pour cet événement.
+                  </div>
+                )}
+                <textarea
+                  value={simpleEmails}
+                  onChange={(e) => setSimpleEmails(e.target.value)}
+                  rows={2}
+                  disabled={isInvitationClosed}
+                  className="block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
+                  placeholder="ami1@gmail.com, ami2@gmail.com…"
+                />
+                <p className="text-[11px] text-gray-500">
+                  Sépare les emails par des virgules ou des retours à la ligne.
+                </p>
+                <div className="flex justify-end">
+                  <Button
+                    type="submit"
+                    loading={simpleSending}
+                    disabled={simpleSending || isInvitationClosed}
+                    className="px-4 py-2.5 text-sm font-semibold"
+                  >
+                    {isInvitationClosed ? 'Invitations closes' : 'Envoyer le lien'}
+                  </Button>
+                </div>
+              </form>
             </div>
           </div>
 
