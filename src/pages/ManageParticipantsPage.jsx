@@ -7,21 +7,19 @@ import Button from '../components/ui/Button';
 import { useAuth } from '../context/AuthContext';
 import eventService from '../services/eventService';
 import invitationService from '../services/invitationService';
-import emailService from '../services/emailService';
 import supabase from '../lib/supabaseClient';
 
 const ManageParticipantsPage = () => {
   const { eventId } = useParams();
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
 
   const [event, setEvent] = useState(null);
   const [invitations, setInvitations] = useState([]);
   const [invitationStatusByEmail, setInvitationStatusByEmail] = useState({});
+  const [videoCount, setVideoCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [simpleEmails, setSimpleEmails] = useState('');
-  const [simpleSending, setSimpleSending] = useState(false);
   const [reminding, setReminding] = useState(false);
 
   const isEventExpired = useCallback((evt) => {
@@ -69,6 +67,11 @@ const ManageParticipantsPage = () => {
         const invList = (await invitationService.getInvitations(eventId)) || [];
         setInvitations(invList);
         setInvitationStatusByEmail(await computeStatusByEmail(invList));
+        const { count } = await supabase
+          .from('videos')
+          .select('id', { count: 'exact', head: true })
+          .eq('event_id', eventId);
+        setVideoCount(count || 0);
       } catch (err) {
         console.error('Erreur chargement participants :', err);
         setError('Erreur lors du chargement des données');
@@ -99,25 +102,6 @@ const ManageParticipantsPage = () => {
     } else {
       await navigator.clipboard.writeText(url);
       toast.success('Lien copié !');
-    }
-  };
-
-  const handleSimpleInvite = async (e) => {
-    e.preventDefault();
-    if (isInvitationClosed) return;
-    const emailList = simpleEmails.split(/[,\n]+/).map((em) => em.trim()).filter(Boolean);
-    if (!emailList.length) { toast.info('Entrez au moins un email'); return; }
-    try {
-      setSimpleSending(true);
-      const results = await emailService.sendSimpleInvitations(emailList, event, profile || user);
-      results.failed.length === 0
-        ? toast.success(`Email(s) envoyé(s) à ${results.success.length} personne(s)`)
-        : toast.warning(`${results.success.length} envoyé(s), ${results.failed.length} échoué(s)`);
-      setSimpleEmails('');
-    } catch {
-      toast.error("Erreur lors de l'envoi");
-    } finally {
-      setSimpleSending(false);
     }
   };
 
@@ -206,33 +190,6 @@ const ManageParticipantsPage = () => {
             >
               📤 Partager le lien (WhatsApp, SMS…)
             </Button>
-
-            <div className="flex items-center gap-3 text-xs text-gray-400">
-              <hr className="flex-1 border-gray-200" /> ou par email <hr className="flex-1 border-gray-200" />
-            </div>
-
-            {/* Email simple */}
-            <form onSubmit={handleSimpleInvite} className="space-y-3">
-              <textarea
-                value={simpleEmails}
-                onChange={(e) => setSimpleEmails(e.target.value)}
-                rows={2}
-                disabled={isInvitationClosed}
-                className="block w-full rounded-lg border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 disabled:bg-gray-100 disabled:text-gray-400"
-                placeholder="ami1@gmail.com, ami2@gmail.com…"
-              />
-              <div className="flex items-center justify-between">
-                <p className="text-[11px] text-gray-400">Sépare par virgule ou retour à la ligne.</p>
-                <Button
-                  type="submit"
-                  loading={simpleSending}
-                  disabled={simpleSending || isInvitationClosed}
-                  className="text-sm px-4 py-2"
-                >
-                  Envoyer
-                </Button>
-              </div>
-            </form>
           </div>
 
           {/* Carte Participants */}
@@ -241,7 +198,7 @@ const ManageParticipantsPage = () => {
               <h2 className="text-sm font-semibold text-gray-900">
                 Invités
                 <span className="ml-2 text-xs font-medium text-gray-400 bg-gray-100 rounded-full px-2 py-0.5">
-                  {invitations.length}
+                  {videoCount} vidéo{videoCount > 1 ? 's' : ''} soumise{videoCount > 1 ? 's' : ''}
                 </span>
               </h2>
               {invitations.length > 0 && (

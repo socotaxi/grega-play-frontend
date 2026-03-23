@@ -100,21 +100,6 @@ const BottomNav = () => {
             />
 
             <Link
-              to="/notifications"
-              className={`flex flex-col items-center justify-center gap-0.5 flex-1 py-2 transition-colors relative ${is('/notifications') ? 'text-brand-600' : 'text-gray-400'}`}
-            >
-              <div className="relative">
-                <BellIcon active={is('/notifications')} />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-bold text-white leading-none">
-                    {unreadCount > 9 ? '9+' : unreadCount}
-                  </span>
-                )}
-              </div>
-              <span className="text-[10px] font-medium">Notifs</span>
-            </Link>
-
-            <Link
               to="/create-event"
               className="flex flex-col items-center justify-center flex-1 -mt-5"
             >
