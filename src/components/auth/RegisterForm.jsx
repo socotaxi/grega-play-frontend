@@ -526,20 +526,6 @@ const RegisterForm = () => {
           S'inscrire
         </Button>
       </div>
-
-      {/* Upsell Premium */}
-      <div className="mt-4 text-center">
-        <p className="text-sm text-gray-600">
-          Tu veux plus de possibilités ?
-          <button
-            type="button"
-            onClick={() => navigate("/premium")}
-            className="ml-1 font-semibold text-purple-600 hover:text-purple-700 underline"
-          >
-            Passer au plan Premium
-          </button>
-        </p>
-      </div>
     </form>
   );
 };
