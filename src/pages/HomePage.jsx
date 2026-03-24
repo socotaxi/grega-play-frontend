@@ -7,6 +7,7 @@ import supabase from '../lib/supabaseClient';
 
 const HomePage = () => {
   const { user } = useAuth();
+  const [videoActive, setVideoActive] = useState(false);
 
   const primaryCtaLink = user ? '/create-event' : '/register';
   const primaryCtaLabel = user ? 'Créer un événement' : 'Créer un compte gratuit';
@@ -195,16 +196,45 @@ const HomePage = () => {
                     </div>
                   </div>
 
-                     {/* Wrapper responsive 9:16 */}
-<div className="mt-2 relative w-full" style={{ paddingTop: '177.78%' }}>
-  <iframe
-    src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO"
-    title="Présentation de Grega Play"
-    className="absolute top-0 left-0 w-full h-full rounded-2xl"
-    frameBorder="0"
-    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-    allowFullScreen
-  />
+                     {/* Wrapper responsive 9:16 — façade lazy : YouTube ne charge que si l'utilisateur clique */}
+<div className="mt-2 relative w-full rounded-2xl overflow-hidden bg-black" style={{ paddingTop: '177.78%' }}>
+  {videoActive ? (
+    <iframe
+      src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO&autoplay=1"
+      title="Présentation de Grega Play"
+      className="absolute top-0 left-0 w-full h-full rounded-2xl"
+      frameBorder="0"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowFullScreen
+    />
+  ) : (
+    <button
+      type="button"
+      onClick={() => setVideoActive(true)}
+      className="absolute top-0 left-0 w-full h-full group"
+      aria-label="Lancer la vidéo de présentation Grega Play"
+    >
+      <img
+        src="https://img.youtube.com/vi/sCIDewhYZR0/hqdefault.jpg"
+        alt="Aperçu de la vidéo de présentation Grega Play"
+        width="480"
+        height="360"
+        loading="lazy"
+        className="w-full h-full object-cover opacity-85"
+      />
+      {/* Bouton play YouTube rouge */}
+      <div className="absolute inset-0 flex items-center justify-center">
+        <div className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-xl group-hover:scale-110 transition-transform duration-150">
+          <svg className="w-7 h-7 text-white ml-1" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M8 5v14l11-7z"/>
+          </svg>
+        </div>
+      </div>
+      <p className="absolute bottom-3 left-0 right-0 text-center text-[11px] text-white/80 font-medium">
+        Cliquez pour lancer la vidéo
+      </p>
+    </button>
+  )}
 </div>
 
                 </div>
@@ -266,14 +296,19 @@ const HomePage = () => {
                 className="group bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md hover:border-emerald-400 transition-all duration-150"
               >
                 <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
-                  <img
-                    src="/images/home-birthday.jpg"
-                    alt="Montage vidéo pour un anniversaire"
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
+                  <picture>
+                    <source srcSet="/images/home-birthday.webp" type="image/webp" />
+                    <img
+                      src="/images/home-birthday.jpg"
+                      alt="Montage vidéo pour un anniversaire"
+                      width="400"
+                      height="160"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </picture>
                 </div>
                 <div className="p-4 flex-1 flex flex-col">
                   <h3 className="text-sm font-semibold text-gray-900">
@@ -295,14 +330,19 @@ const HomePage = () => {
                 className="group bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md hover:border-emerald-400 transition-all duration-150"
               >
                 <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
-                  <img
-                    src="/images/home-wedding.jpg"
-                    alt="Montage vidéo pour un mariage ou un événement familial"
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
+                  <picture>
+                    <source srcSet="/images/home-wedding.webp" type="image/webp" />
+                    <img
+                      src="/images/home-wedding.jpg"
+                      alt="Montage vidéo pour un mariage ou un événement familial"
+                      width="400"
+                      height="160"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </picture>
                 </div>
                 <div className="p-4 flex-1 flex flex-col">
                   <h3 className="text-sm font-semibold text-gray-900">
@@ -324,14 +364,19 @@ const HomePage = () => {
                 className="group bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col hover:shadow-md hover:border-emerald-400 transition-all duration-150"
               >
                 <div className="h-32 sm:h-40 bg-gray-100 overflow-hidden">
-                  <img
-                    src="/images/home-team.jpg"
-                    alt="Montage vidéo pour une équipe ou une entreprise"
-                    className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
-                    onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                    }}
-                  />
+                  <picture>
+                    <source srcSet="/images/home-team.webp" type="image/webp" />
+                    <img
+                      src="/images/home-team.jpg"
+                      alt="Montage vidéo pour une équipe ou une entreprise"
+                      width="400"
+                      height="160"
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-150"
+                      onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                    />
+                  </picture>
                 </div>
                 <div className="p-4 flex-1 flex flex-col">
                   <h3 className="text-sm font-semibold text-gray-900">

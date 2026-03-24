@@ -40,6 +40,10 @@
 
     <!-- ⚠️ Laisse Vite gérer le manifest -->
     <!-- <link rel="manifest" href="/manifest.json" /> -->
+
+    <!-- Préconnexion YouTube uniquement si nécessaire (lazy) — supprimé du critical path -->
+    <!-- Précharge la police principale pour éviter le FOUT -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   </head>
 
   <body>

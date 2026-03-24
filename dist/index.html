@@ -40,11 +40,15 @@
 
     <!-- ⚠️ Laisse Vite gérer le manifest -->
     <!-- <link rel="manifest" href="/manifest.json" /> -->
-    <script type="module" crossorigin src="/assets/index-Bv17yt5p.js"></script>
+
+    <!-- Préconnexion YouTube uniquement si nécessaire (lazy) — supprimé du critical path -->
+    <!-- Précharge la police principale pour éviter le FOUT -->
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <script type="module" crossorigin src="/assets/index-BUc2rwUc.js"></script>
     <link rel="modulepreload" crossorigin href="/assets/vendor-react-B3qEaS4w.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-motion-DcqGGNkg.js">
     <link rel="modulepreload" crossorigin href="/assets/vendor-supabase-CdDeHHf-.js">
-    <link rel="stylesheet" crossorigin href="/assets/index-CZFv1Xjv.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-OTSERqtN.css">
   <link rel="manifest" href="/manifest.webmanifest"><script id="vite-plugin-pwa:register-sw" src="/registerSW.js"></script></head>
 
   <body>

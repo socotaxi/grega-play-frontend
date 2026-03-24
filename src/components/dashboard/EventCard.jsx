@@ -24,14 +24,23 @@ const isEventExpired = (event) => {
 
 const EventThumbnail = ({ url, eventId }) => {
   const lower = (url || '').toLowerCase();
-  let src = '/default-placeholder.jpg';
+  let src = '/default-placeholder.webp';
+  let srcFallback = '/default-placeholder.jpg';
   let alt = 'Aucun visuel';
-  if (lower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) { src = url; alt = 'Visuel événement'; }
-  else if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) { src = '/default-video-thumbnail.jpg'; alt = 'Miniature vidéo'; }
-  else if (lower.match(/\.(mp3|wav|ogg)$/i)) { src = '/default-audio-thumbnail.jpg'; alt = 'Miniature audio'; }
+  if (lower.match(/\.(jpg|jpeg|png|gif|webp)$/i)) { src = url; srcFallback = url; alt = 'Visuel événement'; }
+  else if (lower.match(/\.(mp4|mov|avi|mkv|webm)$/i)) { src = '/default-video-thumbnail.jpg'; srcFallback = src; alt = 'Miniature vidéo'; }
+  else if (lower.match(/\.(mp3|wav|ogg)$/i)) { src = '/default-audio-thumbnail.jpg'; srcFallback = src; alt = 'Miniature audio'; }
+  const isWebp = src.endsWith('.webp') && srcFallback.endsWith('.jpg');
   return (
     <Link to={`/events/${eventId}`} className="flex-shrink-0">
-      <img src={src} alt={alt} className="w-20 h-16 object-cover rounded-md border border-gray-200" />
+      {isWebp ? (
+        <picture>
+          <source srcSet={src} type="image/webp" />
+          <img src={srcFallback} alt={alt} width="80" height="64" loading="lazy" decoding="async" className="w-20 h-16 object-cover rounded-md border border-gray-200" />
+        </picture>
+      ) : (
+        <img src={src} alt={alt} width="80" height="64" loading="lazy" decoding="async" className="w-20 h-16 object-cover rounded-md border border-gray-200" />
+      )}
     </Link>
   );
 };
