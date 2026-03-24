@@ -16,9 +16,17 @@ export const AuthProvider = ({ children }) => {
 
   // ✅ empêche double redirection (init + onAuthStateChange)
   const didRedirectRef = useRef(false);
+  // ✅ empêche double loadProfile pour le même userId
+  const profileForUserRef = useRef(undefined);
 
   const loadProfile = async (userId) => {
-    if (!userId) {
+    const resolvedId = userId || null;
+
+    // Évite de re-fetcher si on charge déjà (ou vient de charger) pour ce même userId
+    if (resolvedId === profileForUserRef.current) return;
+    profileForUserRef.current = resolvedId;
+
+    if (!resolvedId) {
       setProfile(null);
       setProfileLoading(false);
       return;
@@ -96,6 +104,7 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     const init = async () => {
+      let currentUser = null;
       try {
         const { data, error } = await supabase.auth.getSession();
         if (error) console.error("Erreur récupération session:", error);
@@ -120,22 +129,24 @@ export const AuthProvider = ({ children }) => {
           }
         }
 
-        const currentUser = currentSession?.user ?? null;
-
+        currentUser = currentSession?.user ?? null;
         setSession(currentSession);
         setUser(currentUser);
-
-        await loadProfile(currentUser?.id ?? null);
-
-        // ✅ si déjà connecté et returnTo existe
-        if (currentUser) {
-          redirectIfReturnTo();
-        } else {
-          // si pas connecté, on autorise une future redirection après login
-          didRedirectRef.current = false;
-        }
       } finally {
+        // ✅ Déverrouille l'UI dès que la session est connue,
+        // sans attendre le chargement du profil (profileLoading gère ça)
         setLoading(false);
+      }
+
+      // Profile se charge après le déverrouillage (non-bloquant pour l'UI)
+      await loadProfile(currentUser?.id ?? null);
+
+      // ✅ si déjà connecté et returnTo existe
+      if (currentUser) {
+        redirectIfReturnTo();
+      } else {
+        // si pas connecté, on autorise une future redirection après login
+        didRedirectRef.current = false;
       }
     };
 

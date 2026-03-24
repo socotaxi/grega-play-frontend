@@ -104,9 +104,10 @@ export const useDashboardData = () => {
     const loadStats = async () => {
       if (!sortedEvents.length) { setEventStats({}); return; }
       try {
-        const results = await Promise.all(sortedEvents.map((e) => eventService.getEventStats(e.id)));
-        const entries = sortedEvents.map((e, i) => {
-          const s = results[i] || {};
+        const ids = sortedEvents.map((e) => e.id);
+        const batchResult = await eventService.getBatchEventStats(ids);
+        const entries = sortedEvents.map((e) => {
+          const s = batchResult[e.id] || {};
           return [e.id, {
             totalInvitations: s.totalInvitations ?? 0,
             totalWithVideo: s.totalWithVideo ?? s.videos_count ?? 0,

@@ -58,6 +58,9 @@ export default defineConfig({
           // Dépendances stables → chunk séparé, mis en cache longtemps par le navigateur
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-supabase': ['@supabase/supabase-js'],
+          // Libs lourdes chargées uniquement sur certaines pages
+          'vendor-motion': ['framer-motion'],
+          'vendor-phone': ['libphonenumber-js', 'world-countries', 'country-telephone-data'],
         },
       },
     },

@@ -298,6 +298,34 @@ const eventService = {
     return data;
   },
 
+  // ---------------------------------------------------------
+  // 🔵 Stats batch (1 seule requête pour tous les events)
+  // ---------------------------------------------------------
+  async getBatchEventStats(eventIds) {
+    const fallback = () => {
+      const result = {};
+      eventIds.forEach((id) => {
+        result[id] = { totalInvitations: 0, totalWithVideo: 0, totalPending: 0 };
+      });
+      return result;
+    };
+
+    if (!API_BASE_URL || !API_KEY) return fallback();
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/events/batch-stats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+        body: JSON.stringify({ eventIds }),
+      });
+      if (!res.ok) return fallback();
+      const data = await res.json();
+      return data.stats || fallback();
+    } catch {
+      return fallback();
+    }
+  },
+
   // (ancien nom conservé si utilisé ailleurs)
   async updateDeadline(eventId, newDeadline) {
     return this.updateEventDeadline(eventId, newDeadline);
