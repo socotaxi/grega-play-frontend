@@ -16,7 +16,7 @@ const FEATURES = [
       </svg>
     ),
     title: '100 % collaboratif',
-    desc: 'Chaque invité envoie sa vidéo depuis son téléphone, où qu'il soit dans le monde.',
+    desc: "Chaque invité envoie sa vidéo depuis son téléphone, où qu'il soit dans le monde.",
   },
   {
     bg: 'bg-indigo-50',
@@ -265,7 +265,7 @@ const HomePage = () => {
                           src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO&autoplay=1"
                           title="Présentation de Grega Play"
                           className="absolute top-0 left-0 w-full h-full rounded-2xl"
-                          frameBorder="0"
+                          style={{ border: 0 }}
                           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                           allowFullScreen
                         />
@@ -344,7 +344,7 @@ const HomePage = () => {
               {/* Connector line (desktop only) */}
               <div className="hidden md:block absolute top-8 left-[calc(16.66%+1rem)] right-[calc(16.66%+1rem)] h-px bg-gray-200" />
 
-              {STEPS.map((step, i) => (
+              {STEPS.map((step) => (
                 <div key={step.n} className="relative bg-white rounded-2xl border border-gray-200 shadow-sm p-6 flex flex-col gap-4">
                   <div className="flex items-center gap-4">
                     <div className="flex-shrink-0 w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md">
