@@ -1,88 +1,117 @@
-import React from 'react';
-
 const getProgressColor = (pct) => {
   if (pct < 30) return 'bg-red-500';
-  if (pct < 70) return 'bg-orange-400';
+  if (pct < 70) return 'bg-amber-400';
   return 'bg-emerald-500';
 };
+
+const StatCard = ({ icon, label, value, sub, children }) => (
+  <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5">
+    <div className="flex items-start justify-between">
+      <div className="flex-1 min-w-0">
+        <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+        <p className="mt-1.5 text-3xl font-bold text-gray-900">{value}</p>
+        {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
+      </div>
+      <div className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center bg-indigo-50 ml-3">
+        {icon}
+      </div>
+    </div>
+    {children}
+  </div>
+);
 
 const PremiumStats = ({ globalStats, statsByTheme }) => (
   <>
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
-        <p className="text-xs text-gray-500">Événements</p>
-        <p className="mt-1 text-2xl font-bold text-gray-900">{globalStats.totalEvents}</p>
-        <p className="mt-1 text-[11px] text-gray-500">Nombre total d&apos;événements que tu as créés ou gères.</p>
-      </div>
+      <StatCard
+        label="Événements"
+        value={globalStats.totalEvents}
+        sub="Créés ou gérés"
+        icon={
+          <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+          </svg>
+        }
+      />
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
-        <p className="text-xs text-gray-500">Vidéos reçues</p>
-        <p className="mt-1 text-2xl font-bold text-gray-900">
-          {globalStats.totalWithVideo}
-          {globalStats.totalInvitations > 0 && (
-            <span className="ml-2 text-sm font-medium text-gray-500">/ {globalStats.totalInvitations}</span>
-          )}
-        </p>
-        <p className="mt-1 text-[11px] text-gray-500">Clips reçus sur l&apos;ensemble de tes événements.</p>
+      <StatCard
+        label="Vidéos reçues"
+        value={globalStats.totalWithVideo}
+        sub={globalStats.totalInvitations > 0 ? `sur ${globalStats.totalInvitations} invités` : 'Clips collectés'}
+        icon={
+          <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.723v6.554a1 1 0 01-1.447.894L15 14M3 8a2 2 0 012-2h8a2 2 0 012 2v8a2 2 0 01-2 2H5a2 2 0 01-2-2V8z" />
+          </svg>
+        }
+      >
         {globalStats.totalInvitations > 0 && (
-          <div className="mt-3">
-            <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+          <div className="mt-4">
+            <div className="flex items-center justify-between text-[11px] text-gray-400 mb-1.5">
               <span>Taux de complétion</span>
-              <span className="font-medium text-gray-700">{globalStats.completionPct}%</span>
+              <span className="font-semibold text-gray-700">{globalStats.completionPct}%</span>
             </div>
-            <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
+            <div className="w-full h-1.5 rounded-full bg-gray-100 overflow-hidden">
               <div
-                className={`h-2 rounded-full ${getProgressColor(globalStats.completionPct)} transition-all`}
+                className={`h-1.5 rounded-full ${getProgressColor(globalStats.completionPct)} transition-all`}
                 style={{ width: `${globalStats.completionPct}%` }}
               />
             </div>
           </div>
         )}
-      </div>
+      </StatCard>
 
-      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-4 py-4">
-        <p className="text-xs text-gray-500">En attente de vidéo</p>
-        <p className="mt-1 text-2xl font-bold text-gray-900">{globalStats.totalPending}</p>
-        <p className="mt-1 text-[11px] text-gray-500">Participants invités qui n&apos;ont pas encore envoyé de clip.</p>
-      </div>
+      <StatCard
+        label="En attente"
+        value={globalStats.totalPending}
+        sub="Participants sans clip"
+        icon={
+          <svg className="w-5 h-5 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        }
+      />
     </div>
 
-    <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5">
-      <div className="mb-3">
-        <h2 className="text-sm font-semibold text-gray-900">Performance par type d&apos;événement</h2>
-        <p className="text-xs text-gray-500 mt-1">
-          Compare les types d&apos;événements pour voir où Grega Play performe le mieux.
-        </p>
-      </div>
-      <div className="mt-2 overflow-x-auto">
-        {statsByTheme.length === 0 ? (
-          <p className="text-xs text-gray-500 py-4">Aucune statistique disponible pour l&apos;instant.</p>
-        ) : (
+    {statsByTheme.length > 0 && (
+      <div className="bg-white rounded-2xl border border-gray-200 shadow-sm px-5 py-5">
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-gray-900">Performance par type d&apos;événement</h2>
+          <p className="text-xs text-gray-400 mt-0.5">Taux de participation selon les thèmes</p>
+        </div>
+        <div className="overflow-x-auto">
           <table className="min-w-full text-xs">
             <thead>
-              <tr className="border-b border-gray-100 text-[11px] text-gray-500">
-                <th className="py-2 pr-4 text-left font-medium">Type d&apos;événement</th>
-                <th className="py-2 px-2 text-right font-medium">Événements</th>
-                <th className="py-2 px-2 text-right font-medium">Invités</th>
-                <th className="py-2 px-2 text-right font-medium">Vidéos reçues</th>
-                <th className="py-2 pl-2 text-right font-medium">Taux de complétion</th>
+              <tr className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide border-b border-gray-100">
+                <th className="pb-3 pr-4 text-left">Thème</th>
+                <th className="pb-3 px-3 text-right">Événements</th>
+                <th className="pb-3 px-3 text-right">Invités</th>
+                <th className="pb-3 px-3 text-right">Vidéos</th>
+                <th className="pb-3 pl-3 text-right">Complétion</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-50">
               {statsByTheme.map((row) => (
-                <tr key={row.theme} className="border-b border-gray-50 hover:bg-gray-50/50">
-                  <td className="py-2 pr-4 text-left text-gray-800">{row.theme}</td>
-                  <td className="py-2 px-2 text-right text-gray-700">{row.eventsCount}</td>
-                  <td className="py-2 px-2 text-right text-gray-700">{row.totalInvitations}</td>
-                  <td className="py-2 px-2 text-right text-gray-700">{row.totalWithVideo}</td>
-                  <td className="py-2 pl-2 text-right text-gray-700">{row.completionPct}%</td>
+                <tr key={row.theme} className="hover:bg-gray-50/50 transition-colors">
+                  <td className="py-3 pr-4 font-medium text-gray-800">{row.theme}</td>
+                  <td className="py-3 px-3 text-right text-gray-600">{row.eventsCount}</td>
+                  <td className="py-3 px-3 text-right text-gray-600">{row.totalInvitations}</td>
+                  <td className="py-3 px-3 text-right text-gray-600">{row.totalWithVideo}</td>
+                  <td className="py-3 pl-3 text-right">
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[11px] font-semibold ${
+                      row.completionPct >= 70 ? 'bg-emerald-50 text-emerald-700' :
+                      row.completionPct >= 30 ? 'bg-amber-50 text-amber-700' :
+                      'bg-red-50 text-red-700'
+                    }`}>
+                      {row.completionPct}%
+                    </span>
+                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
+        </div>
       </div>
-    </div>
+    )}
   </>
 );
 
