@@ -12,6 +12,10 @@ export default defineConfig({
       strategies: 'injectManifest',
       srcDir: 'src',
       filename: 'sw.js',
+      injectManifest: {
+        // Ne précache pas les fichiers > 1 Mo (évite de saturer le mobile)
+        maximumFileSizeToCacheInBytes: 1 * 1024 * 1024,
+      },
       includeAssets: [
         'favicon.ico',
         'apple-touch-icon.png',
@@ -45,6 +49,17 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+    },
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Dépendances stables → chunk séparé, mis en cache longtemps par le navigateur
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          'vendor-supabase': ['@supabase/supabase-js'],
+        },
+      },
     },
   },
   server: {
