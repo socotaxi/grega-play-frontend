@@ -67,7 +67,7 @@ const MainLayout = ({ children }) => {
                 Créer un compte
               </Link>
             )}
-            <Link to="/contact" className="text-gray-600 hover:text-emerald-600 transition">Contact</Link>
+            {/* <Link to="/contact" className="text-gray-600 hover:text-emerald-600 transition">Contact</Link> */}
           </nav>
 
           {/* AVATAR mobile (header) */}

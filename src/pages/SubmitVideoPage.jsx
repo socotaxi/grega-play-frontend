@@ -355,7 +355,7 @@ const SubmitVideoPage = () => {
       });
 
       try {
-        await activityService.addActivity({
+        await activityService.logActivity({
           event_id: eventId,
           user_id: user.id,
           type: "video_uploaded",

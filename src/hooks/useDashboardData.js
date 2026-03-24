@@ -104,20 +104,14 @@ export const useDashboardData = () => {
     const loadStats = async () => {
       if (!sortedEvents.length) { setEventStats({}); return; }
       try {
-        const eventIds = sortedEvents.map((e) => e.id);
-        const [{ data: invRows }, { data: vidRows }] = await Promise.all([
-          supabase.from('invitations').select('event_id').in('event_id', eventIds),
-          supabase.from('videos').select('event_id').in('event_id', eventIds),
-        ]);
-        const invByEvent = {};
-        const vidByEvent = {};
-        (invRows || []).forEach(({ event_id }) => { invByEvent[event_id] = (invByEvent[event_id] || 0) + 1; });
-        (vidRows || []).forEach(({ event_id }) => { vidByEvent[event_id] = (vidByEvent[event_id] || 0) + 1; });
-        const entries = sortedEvents.map((e) => {
-          const totalInvitations = invByEvent[e.id] || 0;
-          const totalWithVideo = vidByEvent[e.id] || 0;
-          const totalPending = Math.max(0, totalInvitations - totalWithVideo);
-          return [e.id, { totalInvitations, totalWithVideo, totalPending }];
+        const results = await Promise.all(sortedEvents.map((e) => eventService.getEventStats(e.id)));
+        const entries = sortedEvents.map((e, i) => {
+          const s = results[i] || {};
+          return [e.id, {
+            totalInvitations: s.totalInvitations ?? 0,
+            totalWithVideo: s.totalWithVideo ?? s.videos_count ?? 0,
+            totalPending: s.totalPending ?? 0,
+          }];
         });
         setEventStats(Object.fromEntries(entries));
       } catch (err) {
@@ -150,15 +144,15 @@ export const useDashboardData = () => {
         toLoad.forEach((id) => (next[id] = true));
         return next;
       });
-      const results = await Promise.allSettled(
-        toLoad.map((eventId) => videoService.getEventCapabilities(eventId))
-      );
+      let batchResults = {};
+      try {
+        batchResults = await videoService.getBatchEventCapabilities(toLoad);
+      } catch {
+        // en cas d'erreur, on met null pour chaque event
+        toLoad.forEach((id) => { batchResults[id] = null; });
+      }
       if (cancelled) return;
-      setCapsByEventId((prev) => {
-        const next = { ...prev };
-        results.forEach((res, idx) => { next[toLoad[idx]] = res.status === 'fulfilled' ? res.value : null; });
-        return next;
-      });
+      setCapsByEventId((prev) => ({ ...prev, ...batchResults }));
       setCapsLoadingByEventId((prev) => {
         const next = { ...prev };
         toLoad.forEach((id) => (next[id] = false));

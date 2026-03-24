@@ -44,12 +44,12 @@ const MainLayout = ({ children }) => {
               Accueil
             </Link>
 
-            <Link
+            {/* <Link
               to="/contact"
               className="text-gray-600 hover:text-emerald-600 transition"
             >
               Contact
-            </Link>
+            </Link> */}
 
             {user ? (
               <>
@@ -119,13 +119,13 @@ const MainLayout = ({ children }) => {
               Accueil
             </Link>
 
-            <Link
+            {/* <Link
               to="/contact"
               className="block py-2 text-sm text-gray-700 hover:text-emerald-600"
               onClick={() => setMenuOpen(false)}
             >
               Contact
-            </Link>
+            </Link> */}
 
             {user ? (
               <>

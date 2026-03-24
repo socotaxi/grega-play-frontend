@@ -197,6 +197,35 @@ const videoService = {
     return result;
   },
 
+  async getBatchEventCapabilities(eventIds) {
+    if (!eventIds || eventIds.length === 0) return {};
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    const backendApiKey = import.meta.env.VITE_BACKEND_API_KEY;
+
+    if (!backendUrl) throw new Error("VITE_BACKEND_URL manquant dans le .env.");
+
+    const token = await getAccessTokenOrThrow();
+
+    const response = await fetch(`${backendUrl}/api/events/capabilities-batch`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`,
+        ...(backendApiKey ? { "x-api-key": backendApiKey } : {}),
+      },
+      body: JSON.stringify({ eventIds }),
+    });
+
+    const result = await safeReadJson(response);
+
+    if (!response.ok) {
+      throw new Error(extractErrorMessage(response.status, result));
+    }
+
+    return result.results; // { [eventId]: caps }
+  },
+
   async adminKillFinalVideoJob({ jobId } = {}) {
     if (!jobId) throw new Error("jobId manquant.");
 

@@ -46,7 +46,6 @@ const CreateEventPage = () => {
   const [formData, setFormData] = useState({
     title: "",
     description: "",
-    theme: "",
     videoDuration: 30,
     maxClipDuration: 30,
     endDate: "",
@@ -56,7 +55,6 @@ const CreateEventPage = () => {
   });
 
   const [loading, setLoading] = useState(false);
-  const [participantEmail, setParticipantEmail] = useState("");
 
   // fichier média optionnel
   const [mediaFile, setMediaFile] = useState(null);
@@ -121,19 +119,6 @@ const CreateEventPage = () => {
     // 🔹 Vérifier que la date n'est pas dans le passé
     if (isPastDate(formData.endDate)) {
       toast.error("La date limite ne peut pas être dans le passé");
-      return;
-    }
-
-    // Vérification des participants :
-    // ✅ Event privé → au moins un email invité
-    // ✅ Event public → peut démarrer sans invitation, partage uniquement par lien
-    if (
-      !formData.isPublic &&
-      (!formData.participants || formData.participants.length === 0)
-    ) {
-      toast.error(
-        "Pour un événement privé, tu dois inviter au moins une personne par email."
-      );
       return;
     }
 
@@ -204,7 +189,7 @@ const CreateEventPage = () => {
         event_id: event.id,
         user_id: user?.id,
         type: "created_event",
-        message: `${user?.email} a créé l'événement "${event.title}"`,
+        message: `${profile?.full_name ? profile.full_name.split(" ")[0] : user?.email} a créé l'événement "${event.title}"`,
       });
 
       navigate("/dashboard");
@@ -266,36 +251,20 @@ const CreateEventPage = () => {
                 onSubmit={handleSubmit}
                 className="px-6 pt-4 pb-6 space-y-4"
               >
-                {/* Titre + Thème */}
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                      Titre de l'événement *
-                    </label>
-                    <input
-                      type="text"
-                      name="title"
-                      value={formData.title}
-                      onChange={handleChange}
-                      required
-                      className="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Anniversaire de Lyne, Mariage d’Isaac..."
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                      Thème (optionnel)
-                    </label>
-                    <input
-                      type="text"
-                      name="theme"
-                      value={formData.theme}
-                      onChange={handleChange}
-                      className="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                      placeholder="Anniversaire, Mariage, Départ, Baby-shower..."
-                    />
-                  </div>
+                {/* Titre */}
+                <div>
+                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                    Titre de l’événement *
+                  </label>
+                  <input
+                    type="text"
+                    name="title"
+                    value={formData.title}
+                    onChange={handleChange}
+                    required
+                    className="mt-1 w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                    placeholder="Anniversaire de Lyne, Mariage d’Isaac..."
+                  />
                 </div>
 
                 {/* Description */}
@@ -395,50 +364,6 @@ const CreateEventPage = () => {
                       </span>
                     </label>
                   </div>
-                </div>
-
-                {/* Participants */}
-                <div>
-                  <label className="block text-xs font-semibold text-gray-700 uppercase tracking-wide">
-                    Inviter des participants (emails)
-                  </label>
-
-                  <div className="mt-1 flex gap-2">
-                    <input
-                      type="email"
-                      value={participantEmail}
-                      onChange={(e) => setParticipantEmail(e.target.value)}
-                      placeholder="Ex : ami1@gmail.com"
-                      className="flex-1 rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
-                    />
-                    <Button type="button" onClick={handleAddParticipant}>
-                      Ajouter
-                    </Button>
-                  </div>
-
-                  {formData.participants.length > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {formData.participants.map((p, idx) => (
-                        <span
-                          key={idx}
-                          className="inline-flex items-center gap-1 rounded-full bg-indigo-50 border border-indigo-100 px-3 py-1 text-xs text-indigo-700"
-                        >
-                          {p}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveParticipant(p)}
-                            className="text-[11px] text-indigo-500 hover:text-red-500"
-                          >
-                            ✕
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-
-                  <p className="mt-1 text-[11px] text-gray-500">
-                    Tu pourras aussi partager un lien public.
-                  </p>
                 </div>
 
                 {/* CTA */}

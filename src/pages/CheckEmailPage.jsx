@@ -44,7 +44,7 @@ const CheckEmailPage = () => {
           📩 Vérifiez votre boîte mail
         </h1>
         <p className="text-gray-700 mb-6 leading-relaxed">
-          Merci pour votre inscription sur <strong>Grega Play</strong> 🎉
+          Merci pour votre inscription sur <strong>Grega Play</strong>
           <br />
           Pour activer votre compte, nous vous avons envoyé un email de
           confirmation à :

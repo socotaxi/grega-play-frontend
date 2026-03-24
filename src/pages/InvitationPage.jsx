@@ -28,7 +28,7 @@ function isUnder15(birthDateString) {
 const InvitationPage = () => {
   const { token } = useParams();
   const navigate = useNavigate();
-  const { user, login, register } = useAuth();
+  const { user, profile, login, register } = useAuth();
 
   const [invitation, setInvitation] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -119,7 +119,7 @@ const InvitationPage = () => {
             event_id: invitation.event_id,
             user_id: user.id,
             type: "accepted_invitation",
-            message: `${user.email} a rejoint l'événement 🎉`,
+            message: `${profile?.full_name ? profile.full_name.split(" ")[0] : user.email} a rejoint l'événement 🎉`,
           });
         } catch (logErr) {
           console.warn("Erreur logActivity (accepted_invitation):", logErr);
@@ -169,7 +169,7 @@ const InvitationPage = () => {
             event_id: invitation.event_id,
             user_id: user?.id || null,
             type: "declined_invitation",
-            message: `${user?.email || 'Un invité'} a refusé l'invitation ❌`,
+            message: `${profile?.full_name ? profile.full_name.split(" ")[0] : user?.email || 'Un invité'} a refusé l'invitation ❌`,
           });
         } catch (logErr) {
           console.warn("Erreur logActivity (declined_invitation):", logErr);

@@ -680,7 +680,7 @@ const PremiumPage = () => {
         </div>
 
         {/* ── CTA STICKY MOBILE ── */}
-        <div className="md:hidden fixed inset-x-0 bottom-0 z-40 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-4 pt-3 pb-6">
+        <div className="md:hidden fixed inset-x-0 bottom-16 z-40 bg-white/95 backdrop-blur-sm border-t border-gray-200 px-4 pt-3 pb-3">
           <button
             type="button"
             onClick={handleMainCta}

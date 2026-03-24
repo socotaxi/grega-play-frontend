@@ -1,12 +1,6 @@
 import { Link } from 'react-router-dom';
 import { toast } from 'react-toastify';
 
-const getProgressColor = (pct) => {
-  if (pct < 30) return 'bg-red-500';
-  if (pct < 70) return 'bg-orange-400';
-  return 'bg-emerald-500';
-};
-
 const statusMap = {
   open: { color: 'bg-yellow-100 text-yellow-800', label: 'Ouvert' },
   ready: { color: 'bg-blue-100 text-blue-800', label: 'Prêt pour montage' },
@@ -64,9 +58,7 @@ const EventCard = ({
 
   const stats = eventStats[event.id];
   const pendingCount = typeof stats?.totalPending === 'number' ? stats.totalPending : null;
-  const totalInvitations = typeof stats?.totalInvitations === 'number' ? stats.totalInvitations : 0;
   const totalWithVideo = typeof stats?.totalWithVideo === 'number' ? stats.totalWithVideo : 0;
-  const progressPct = totalInvitations > 0 ? Math.round((totalWithVideo / totalInvitations) * 100) : 0;
 
   const caps = capsByEventId[event.id] || null;
   const capsLoading = !!capsLoadingByEventId[event.id];
@@ -95,20 +87,10 @@ const EventCard = ({
                 {capsLoading && !isOwner && <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-gray-100 text-gray-600">Vérification...</span>}
                 {!isOwner && !!latestVideo && <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">Vidéo envoyée</span>}
                 {!isOwner && hasReachedUploadLimit && <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-amber-50 text-amber-700 border border-amber-200">Limite atteinte</span>}
-                {isOwner && pendingCount !== null && <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-orange-50 text-orange-700">{pendingCount} en attente de vidéo</span>}
+                {isOwner && pendingCount > 0 && <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-orange-50 text-orange-700">{pendingCount} en attente de vidéo</span>}
+                {isOwner && totalWithVideo > 0 && <span className="inline-flex px-2.5 py-1 text-[11px] font-medium rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">{totalWithVideo} vidéo{totalWithVideo > 1 ? 's' : ''} reçue{totalWithVideo > 1 ? 's' : ''}</span>}
               </div>
 
-              {totalInvitations > 0 && (
-                <div className="mt-3">
-                  <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
-                    <span>Vidéos reçues</span>
-                    <span className="font-medium text-gray-700">{totalWithVideo} / {totalInvitations} ({progressPct}%)</span>
-                  </div>
-                  <div className="w-full h-2 rounded-full bg-gray-100 overflow-hidden">
-                    <div className={`h-2 rounded-full ${getProgressColor(progressPct)} transition-all`} style={{ width: `${progressPct}%` }} />
-                  </div>
-                </div>
-              )}
 
               {isOwner && event.public_code && (
                 <div className="mt-3">
@@ -155,13 +137,19 @@ const EventCard = ({
         </div>
 
         <div className="flex sm:flex-col gap-2 sm:items-end">
+          <Link
+            to={`/events/${event.id}`}
+            className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-medium rounded-lg"
+          >
+            Voir l&apos;évènement
+          </Link>
           {isOwner && (
             <>
               <Link
                 to={`/events/${event.id}/manage-participants`}
                 className="inline-flex items-center px-3 py-1.5 border border-emerald-600 text-emerald-600 hover:bg-emerald-50 text-xs font-medium rounded-lg"
               >
-                Inviter
+                Inviter un ami
               </Link>
               <button
                 onClick={() => onDelete(event.id)}
@@ -180,12 +168,6 @@ const EventCard = ({
               Envoyer ma vidéo
             </Link>
           )}
-          <Link
-            to={`/events/${event.id}`}
-            className="inline-flex items-center px-3 py-1.5 border border-gray-300 text-gray-700 hover:bg-gray-50 text-xs font-medium rounded-lg"
-          >
-            Voir
-          </Link>
         </div>
       </div>
     </div>

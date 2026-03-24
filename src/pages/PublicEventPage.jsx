@@ -53,6 +53,15 @@ const PublicEventPage = () => {
   // 🔒 nouvel état : savoir si l'utilisateur connecté est invité ou non
   const [isInvited, setIsInvited] = useState(null);
 
+  // 💬 formulaire de contact
+  const [contactOpen, setContactOpen] = useState(false);
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactMessage, setContactMessage] = useState("");
+  const [contactSending, setContactSending] = useState(false);
+  const [contactStatus, setContactStatus] = useState(null); // "success" | "error"
+  const [contactFormCreatedAt] = useState(() => Date.now());
+
   // Détecter si l'événement est expiré (deadline dépassée)
   const isEventExpired = useCallback((evt) => {
     if (!evt?.deadline) return false;
@@ -180,6 +189,41 @@ const PublicEventPage = () => {
       setIsInvited(null);
     }
   }, [user, event]);
+
+  // Pré-remplir email si connecté
+  useEffect(() => {
+    if (user?.email) setContactEmail(user.email);
+  }, [user]);
+
+  const handleContactSubmit = async (e) => {
+    e.preventDefault();
+    setContactSending(true);
+    setContactStatus(null);
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL;
+      const res = await fetch(`${backendUrl}/api/public/contact-organizer`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          publicCode,
+          senderName: contactName.trim(),
+          senderEmail: contactEmail.trim(),
+          message: contactMessage.trim(),
+          website: "",
+          formCreatedAt: contactFormCreatedAt,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Erreur envoi");
+      setContactStatus("success");
+      setContactName("");
+      setContactMessage("");
+    } catch {
+      setContactStatus("error");
+    } finally {
+      setContactSending(false);
+    }
+  };
 
   const goLogin = useCallback(() => {
     // returnTo déjà posé, mais on le met aussi en query param (robuste)
@@ -431,6 +475,83 @@ const PublicEventPage = () => {
                 pouvez plus envoyer de nouvelle vidéo.
               </p>
             </>
+          )}
+        </div>
+
+        {/* Contacter l'organisateur */}
+        <div className="bg-white border border-gray-200 rounded-lg p-5">
+          <button
+            onClick={() => setContactOpen((v) => !v)}
+            className="w-full flex items-center justify-between text-sm font-medium text-gray-700 hover:text-indigo-600"
+          >
+            <span>Contacter l'organisateur</span>
+            <span className="text-lg leading-none">{contactOpen ? "−" : "+"}</span>
+          </button>
+
+          {contactOpen && (
+            <form onSubmit={handleContactSubmit} className="mt-4 space-y-3">
+              {contactStatus === "success" ? (
+                <p className="text-sm text-green-700 bg-green-50 border border-green-200 rounded-md px-3 py-2">
+                  Votre message a bien été envoyé à l'organisateur.
+                </p>
+              ) : (
+                <>
+                  {contactStatus === "error" && (
+                    <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-md px-3 py-2">
+                      Une erreur s'est produite. Veuillez réessayer.
+                    </p>
+                  )}
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Votre nom
+                    </label>
+                    <input
+                      type="text"
+                      required
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                      placeholder="Prénom Nom"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Votre email
+                    </label>
+                    <input
+                      type="email"
+                      required
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                      placeholder="vous@exemple.com"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-gray-600 mb-1">
+                      Message
+                    </label>
+                    <textarea
+                      required
+                      rows={4}
+                      value={contactMessage}
+                      onChange={(e) => setContactMessage(e.target.value)}
+                      placeholder="Votre message pour l'organisateur…"
+                      className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-400 resize-none"
+                    />
+                  </div>
+                  {/* Honeypot */}
+                  <input type="text" name="website" style={{ display: "none" }} tabIndex={-1} />
+                  <Button
+                    type="submit"
+                    disabled={contactSending}
+                    className="w-full"
+                  >
+                    {contactSending ? "Envoi en cours…" : "Envoyer le message"}
+                  </Button>
+                </>
+              )}
+            </form>
           )}
         </div>
 

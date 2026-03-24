@@ -40,8 +40,7 @@ const ActivityFeed = ({ eventId, userId }) => {
         ) : (
           feed.map((item) => (
             <li key={item.id} className="mb-2 text-sm">
-              <strong>{item.user_full_name || item.user_email || "Utilisateur"}</strong>{" "}
-              : {item.message}
+              {item.message}
               <br />
               <span className="text-gray-500 text-xs">
                 {new Date(item.created_at).toLocaleString()}
