@@ -3,7 +3,6 @@ import { Link, useNavigate } from "react-router-dom";
 import { toast } from "react-toastify";
 import { useAuth } from "../context/AuthContext";
 import eventService from "../services/eventService";
-import invitationService from "../services/invitationService";
 import activityService from "../services/activityService";
 import MainLayout from "../layout/MainLayout";
 import supabase from "../lib/supabaseClient";
@@ -25,7 +24,6 @@ const isPastDate = (dateString) => {
   return selected < today;
 };
 
-const isValidEmail = (email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 
 /* ─── sub-components ─────────────────────────────────────── */
 
@@ -103,7 +101,6 @@ const CreateEventPage = () => {
     theme: "",
     maxClipDuration: 30,
     endDate: "",
-    participants: [],
     enableNotifications: true,
     isPublic: false,
   });
@@ -111,7 +108,6 @@ const CreateEventPage = () => {
   const [loading, setLoading] = useState(false);
   const [mediaFile, setMediaFile] = useState(null);
   const [mediaPreview, setMediaPreview] = useState(null);
-  const [participantEmail, setParticipantEmail] = useState("");
 
   const todayString = new Date().toISOString().split("T")[0];
 
@@ -131,25 +127,6 @@ const CreateEventPage = () => {
     }
   };
 
-  const handleAddParticipant = () => {
-    const email = participantEmail.trim();
-    if (!email) return;
-    if (user?.email && email.toLowerCase() === user.email.toLowerCase()) {
-      toast.error("Tu n'as pas besoin de t'inviter toi-même.");
-      return;
-    }
-    if (!isValidEmail(email)) { toast.error("Adresse e-mail invalide"); return; }
-    if (formData.participants.includes(email)) { toast.error("Cet e-mail est déjà ajouté"); return; }
-    setFormData((prev) => ({ ...prev, participants: [...prev.participants, email] }));
-    setParticipantEmail("");
-  };
-
-  const handleRemoveParticipant = (email) => {
-    setFormData((prev) => ({
-      ...prev,
-      participants: prev.participants.filter((p) => p !== email),
-    }));
-  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -197,16 +174,6 @@ const CreateEventPage = () => {
 
       if (formData.enableNotifications && user?.id) {
         try { await subscribeToPush(user.id); } catch (_) {}
-      }
-
-      if (formData.participants.length > 0) {
-        await invitationService.addInvitations(
-          event.id,
-          formData.participants,
-          "",
-          event,
-          profile || user
-        );
       }
 
       await activityService.logActivity({
@@ -398,61 +365,6 @@ const CreateEventPage = () => {
                   desc="Tu seras prévenu(e) à chaque nouveau clip reçu."
                 />
               </div>
-            </SectionCard>
-
-            {/* ── Section 4 : Invitations ── */}
-            <SectionCard step="4" title="Invitations par e-mail" subtitle="Facultatif — tu pourras aussi inviter depuis le tableau de bord">
-
-              <Field label="Ajouter des participants">
-                <div className="flex gap-2">
-                  <input
-                    type="email"
-                    value={participantEmail}
-                    onChange={(e) => setParticipantEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); handleAddParticipant(); } }}
-                    className={inputCls}
-                    placeholder="prenom@exemple.fr"
-                  />
-                  <button
-                    type="button"
-                    onClick={handleAddParticipant}
-                    className="flex-shrink-0 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-semibold rounded-xl transition-colors"
-                  >
-                    Ajouter
-                  </button>
-                </div>
-              </Field>
-
-              {formData.participants.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs text-gray-500 font-medium">
-                    {formData.participants.length} invité{formData.participants.length > 1 ? "s" : ""} ajouté{formData.participants.length > 1 ? "s" : ""}
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {formData.participants.map((email) => (
-                      <span
-                        key={email}
-                        className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-medium rounded-full border border-indigo-100"
-                      >
-                        {email}
-                        <button
-                          type="button"
-                          onClick={() => handleRemoveParticipant(email)}
-                          className="w-4 h-4 rounded-full hover:bg-indigo-200 flex items-center justify-center transition-colors text-indigo-500"
-                        >
-                          ✕
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {formData.participants.length === 0 && (
-                <p className="text-xs text-gray-400 italic">
-                  Aucun invité pour l'instant — tu pourras en ajouter après la création.
-                </p>
-              )}
             </SectionCard>
 
             {/* ── Submit ── */}
