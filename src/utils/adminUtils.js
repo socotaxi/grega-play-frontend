@@ -2,8 +2,15 @@
 // et le hook useAdminStats.
 
 export const ADMIN_EMAIL = 'edhemrombhot@gmail.com';
-export const DISPLAY_CURRENCY = 'XOF';
-export const DISPLAY_LOCALE = 'fr-FR';
+export const DISPLAY_CURRENCY = 'USD';
+export const DISPLAY_LOCALE = 'en-US';
+
+// ── Tarifs bêta (prix que tu appliqueras après la phase gratuite) ─────────────
+// Modifie ces valeurs pour ajuster l'estimation du CA potentiel.
+export const PRICING = {
+  premiumAccountUsd:  9.99,  // Prix mensuel d'un compte Premium
+  premiumEventUsd:    4.99,  // Prix unitaire d'un boost événement Premium
+};
 
 export const safeNumber = (v) => {
   const n = Number(v);
@@ -49,16 +56,17 @@ export const isPremiumActive = (flag, expiresAt) => {
   }
 };
 
-export const formatAmount = (xofAmount) => {
-  const amount = Number(xofAmount || 0);
+export const formatAmount = (usdAmount) => {
+  const amount = Number(usdAmount || 0);
   try {
     return amount.toLocaleString(DISPLAY_LOCALE, {
       style: 'currency',
       currency: DISPLAY_CURRENCY,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
     });
   } catch {
-    return `${Math.round(amount).toLocaleString(DISPLAY_LOCALE)} F CFA`;
+    return `$${amount.toFixed(2)}`;
   }
 };
 

@@ -232,7 +232,7 @@ const CreateEventPage = () => {
                 />
               </Field>
 
-              <Field label="Thème" hint="Aide à organiser tes événements dans les statistiques.">
+              <Field label="Thème" hint="">
                 <div className="flex flex-wrap gap-2">
                   {THEMES.map((t) => (
                     <button
@@ -320,27 +320,6 @@ const CreateEventPage = () => {
                   min={todayString}
                   className={inputCls}
                 />
-              </Field>
-
-              <Field label="Durée maximale par clip (secondes)" hint="Recommandé : 30 s. Max autorisé : 35 s.">
-                <div className="flex items-center gap-4">
-                  <input
-                    type="range"
-                    name="maxClipDuration"
-                    value={formData.maxClipDuration}
-                    onChange={handleChange}
-                    min={5}
-                    max={35}
-                    step={5}
-                    className="flex-1 accent-indigo-600"
-                  />
-                  <span className="flex-shrink-0 w-14 text-center text-sm font-semibold text-indigo-600 bg-indigo-50 rounded-lg py-1.5 border border-indigo-100">
-                    {formData.maxClipDuration} s
-                  </span>
-                </div>
-                <div className="flex justify-between text-[10px] text-gray-400 mt-1 px-0.5">
-                  <span>5 s</span><span>35 s</span>
-                </div>
               </Field>
             </SectionCard>
 

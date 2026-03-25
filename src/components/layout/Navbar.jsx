@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import supabase from '../../lib/supabaseClient';
+import { ADMIN_EMAIL } from '../../utils/adminUtils';
 
 const Navbar = () => {
   const { user, logout } = useAuth();
@@ -28,6 +29,14 @@ const Navbar = () => {
       <div className="flex items-center gap-4">
         {user && profile ? (
           <>
+            {user.email === ADMIN_EMAIL && (
+              <Link
+                to="/admin/stats"
+                className="text-sm text-indigo-600 font-semibold hover:underline"
+              >
+                Admin
+              </Link>
+            )}
             <span className="hidden sm:block text-sm text-gray-700">{profile.full_name}</span>
             <Link to="/profile">
               <img

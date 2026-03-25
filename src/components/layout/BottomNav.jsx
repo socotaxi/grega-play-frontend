@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import supabase from '../../lib/supabaseClient';
+import { useIsAdmin } from '../../hooks/useIsAdmin';
 
 const HomeIcon = ({ active }) => (
   <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
@@ -51,11 +52,18 @@ const NavItem = ({ to, icon, label, active }) => (
   </Link>
 );
 
+const AdminIcon = ({ active }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill={active ? 'currentColor' : 'none'} viewBox="0 0 24 24" stroke="currentColor" strokeWidth={active ? 0 : 1.8}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+  </svg>
+);
+
 const BottomNav = () => {
   const { user } = useAuth();
   const { pathname } = useLocation();
   const is = (path) => pathname === path;
   const [unreadCount, setUnreadCount] = useState(0);
+  const isAdmin = useIsAdmin();
 
   useEffect(() => {
     if (!user) return;
@@ -115,6 +123,14 @@ const BottomNav = () => {
               active={is('/profile')}
               icon={<ProfileIcon active={is('/profile')} />}
             />
+            {isAdmin && (
+              <NavItem
+                to="/admin/stats"
+                label="Admin"
+                active={is('/admin/stats')}
+                icon={<AdminIcon active={is('/admin/stats')} />}
+              />
+            )}
           </>
         ) : (
           <>
