@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import Button from '../components/ui/Button';
@@ -9,6 +9,7 @@ import { toast } from 'react-toastify';
 import supabase from '../lib/supabaseClient';
 import activityService from "../services/activityService";
 import { useAuth } from "../context/AuthContext";
+import { compressVideo, shouldCompress } from '../utils/videoCompressor';
 
 const ADMIN_EMAIL = "edhemrombhot@gmail.com";
 const isAdminEmail = (email) => String(email || "").toLowerCase() === ADMIN_EMAIL;
@@ -16,6 +17,9 @@ const isAdminEmail = (email) => String(email || "").toLowerCase() === ADMIN_EMAI
 const MAX_VIDEO_DURATION_SECONDS = 30;
 const MAX_VIDEO_SIZE_MB = 50;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
+const COMPRESS_THRESHOLD_BYTES = 15 * 1024 * 1024; // 15 MB
+
+const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
 
 const clampPct = (v) => {
   const n = Number(v);
@@ -50,10 +54,21 @@ const SubmitVideoPage = () => {
   const isAdmin = isAdminEmail(user?.email);
   const maxDurationSec = isAdmin ? Number.POSITIVE_INFINITY : MAX_VIDEO_DURATION_SECONDS;
   const maxSizeBytes = isAdmin ? Number.POSITIVE_INFINITY : MAX_VIDEO_SIZE_BYTES;
+  const isMobile = isMobileDevice();
+
+  // Refs for the two hidden file inputs (gallery + camera)
+  const fileInputRef = useRef(null);
+  const cameraInputRef = useRef(null);
 
   const [event, setEvent] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
+
+  // Compression state
+  const [compressing, setCompressing] = useState(false);
+  const [compressionProgress, setCompressionProgress] = useState(0);
+  const [compressionInfo, setCompressionInfo] = useState(null); // { originalSize, compressedSize }
+  const [needsCompression, setNeedsCompression] = useState(false);
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -131,7 +146,7 @@ const SubmitVideoPage = () => {
         }
       } catch (err) {
         console.error('Erreur chargement événement:', err);
-        setError("Impossible de charger l’événement.");
+        setError("Impossible de charger l'événement.");
       } finally {
         setLoading(false);
       }
@@ -190,6 +205,8 @@ const SubmitVideoPage = () => {
     setIsIndeterminateUpload(false);
     setUploadMeta({ loadedLabel: null, totalLabel: null, speedBps: null, etaSeconds: null });
     setSuccess(false);
+    setCompressionInfo(null);
+    setNeedsCompression(false);
 
     if (!canUpload) {
       setError("Cet événement n'accepte plus de vidéos.");
@@ -209,9 +226,11 @@ const SubmitVideoPage = () => {
       return;
     }
 
-    // ✅ Bypass taille si admin (maxSizeBytes = Infinity)
-    if (file.size > maxSizeBytes) {
-      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${isAdmin ? "illimitée" : (MAX_VIDEO_SIZE_MB + " Mo")}.`);
+    // On mobile: oversized files can be compressed — show preview and offer compression
+    // On desktop (non-admin): hard reject if > 50 MB
+    const tooBig = !isAdmin && file.size > maxSizeBytes;
+    if (tooBig && !isMobile) {
+      setError(`⛔ La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
       setSelectedFile(null);
       setPreviewUrl(null);
       e.target.value = null;
@@ -224,7 +243,6 @@ const SubmitVideoPage = () => {
     video.onloadedmetadata = () => {
       window.URL.revokeObjectURL(video.src);
 
-      // ✅ Bypass durée si admin (maxDurationSec = Infinity)
       if (video.duration > maxDurationSec) {
         setError(`⛔ La vidéo dépasse ${MAX_VIDEO_DURATION_SECONDS} secondes.`);
         setSelectedFile(null);
@@ -236,16 +254,64 @@ const SubmitVideoPage = () => {
       setError(null);
       setSelectedFile(file);
       setPreviewUrl(URL.createObjectURL(file));
+
+      // Auto-compress on mobile if file is heavy, manual option on desktop
+      if (!isAdmin && shouldCompress(file, COMPRESS_THRESHOLD_BYTES)) {
+        if (isMobile) {
+          handleCompress(file);
+        } else {
+          setNeedsCompression(tooBig); // only required if > 50 MB on desktop
+        }
+      }
     };
 
     video.onerror = () => {
-      setError("Impossible de lire la vidéo. Merci d’essayer un autre fichier.");
+      setError("Impossible de lire la vidéo. Merci d'essayer un autre fichier.");
       setSelectedFile(null);
       setPreviewUrl(null);
       e.target.value = null;
     };
 
     video.src = URL.createObjectURL(file);
+  };
+
+  const handleCompress = async (fileToCompress) => {
+    setCompressing(true);
+    setCompressionProgress(0);
+    setCompressionInfo(null);
+    setError(null);
+
+    try {
+      const compressed = await compressVideo(fileToCompress, {
+        onProgress: setCompressionProgress,
+      });
+
+      if (!isAdmin && compressed.size > maxSizeBytes) {
+        setError(`⛔ Même après compression, la vidéo est trop lourde (${(compressed.size / 1024 / 1024).toFixed(1)} Mo). Essayez une vidéo plus courte.`);
+        setSelectedFile(null);
+        setPreviewUrl(null);
+        setNeedsCompression(false);
+        return;
+      }
+
+      const newUrl = URL.createObjectURL(compressed);
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      setSelectedFile(compressed);
+      setPreviewUrl(newUrl);
+      setNeedsCompression(false);
+      setCompressionInfo({
+        originalSize: fileToCompress.size,
+        compressedSize: compressed.size,
+      });
+      toast.success('Vidéo compressée avec succès !');
+    } catch (err) {
+      console.error('Compression error:', err);
+      setError('La compression a échoué. Essayez de choisir une vidéo plus légère.');
+      toast.error('Compression échouée.');
+      setNeedsCompression(false);
+    } finally {
+      setCompressing(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -258,7 +324,7 @@ const SubmitVideoPage = () => {
     }
 
     if (!event) {
-      setError("Impossible de charger l’événement.");
+      setError("Impossible de charger l'événement.");
       return;
     }
 
@@ -282,7 +348,7 @@ const SubmitVideoPage = () => {
 
     if (isBlockedByCapabilities) {
       if (capabilities?.limits?.maxUploadsPerEvent === 1 && hasReachedUploadLimit) {
-        setError("Vous avez déjà envoyé votre vidéo pour cet événement. En compte gratuit, c’est 1 vidéo par événement.");
+        setError("Vous avez déjà envoyé votre vidéo pour cet événement. En compte gratuit, c'est 1 vidéo par événement.");
       } else {
         setError("Vous ne pouvez plus envoyer de vidéo pour cet événement (limite atteinte ou envois fermés).");
       }
@@ -382,7 +448,7 @@ const SubmitVideoPage = () => {
     } catch (err) {
       console.error("Erreur envoi vidéo:", err);
       setError(err?.message || "Une erreur s'est produite lors de l'envoi de la vidéo.");
-      toast.error(err?.message || "Erreur lors de l’envoi de la vidéo.");
+      toast.error(err?.message || "Erreur lors de l'envoi de la vidéo.");
 
       setIsIndeterminateUpload(false);
       setUploadMeta({ loadedLabel: null, totalLabel: null, speedBps: null, etaSeconds: null });
@@ -449,7 +515,7 @@ const SubmitVideoPage = () => {
         {!isNotAuthorized && canUpload && isBlockedByCapabilities && (
           <div className="mb-4 bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md">
             {capabilities?.limits?.maxUploadsPerEvent === 1 && hasReachedUploadLimit
-              ? "Vous avez déjà envoyé votre vidéo pour cet événement. En compte gratuit, c’est 1 vidéo par événement."
+              ? "Vous avez déjà envoyé votre vidéo pour cet événement. En compte gratuit, c'est 1 vidéo par événement."
               : "Vous ne pouvez plus envoyer de vidéo pour cet événement."}
           </div>
         )}
@@ -491,20 +557,114 @@ const SubmitVideoPage = () => {
         {!isNotAuthorized && canUpload && !isBlockedByCapabilities && (
           <form onSubmit={handleSubmit} className="space-y-6 bg-white p-4 border rounded shadow">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Vidéo</label>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Vidéo</label>
+
+              {/* Hidden file inputs */}
               <input
+                ref={fileInputRef}
                 type="file"
                 accept="video/*"
+                className="hidden"
                 onChange={handleFileChange}
-                disabled={submitting || !canUpload}
+                disabled={submitting || compressing || !canUpload}
               />
-              <p className="mt-1 text-xs text-gray-500">
-                Durée max : {isAdmin ? "illimitée" : `${MAX_VIDEO_DURATION_SECONDS} secondes`} · Taille max : {isAdmin ? "illimitée" : `${MAX_VIDEO_SIZE_MB} Mo`}.
+              <input
+                ref={cameraInputRef}
+                type="file"
+                accept="video/*"
+                capture="camcorder"
+                className="hidden"
+                onChange={handleFileChange}
+                disabled={submitting || compressing || !canUpload}
+              />
+
+              {/* Upload buttons — two buttons on mobile, one on desktop */}
+              {isMobile ? (
+                <div className="flex gap-3">
+                  <button
+                    type="button"
+                    onClick={() => cameraInputRef.current?.click()}
+                    disabled={submitting || compressing}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-4 border-2 border-dashed border-blue-400 rounded-lg text-blue-600 font-medium text-sm hover:bg-blue-50 active:bg-blue-100 transition disabled:opacity-50"
+                  >
+                    <span className="text-2xl">📷</span>
+                    Filmer maintenant
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={submitting || compressing}
+                    className="flex-1 flex flex-col items-center justify-center gap-1 py-4 border-2 border-dashed border-gray-300 rounded-lg text-gray-600 font-medium text-sm hover:bg-gray-50 active:bg-gray-100 transition disabled:opacity-50"
+                  >
+                    <span className="text-2xl">🎞️</span>
+                    Depuis la galerie
+                  </button>
+                </div>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={submitting || compressing}
+                  className="flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 transition disabled:opacity-50"
+                >
+                  🎬 Choisir une vidéo
+                </button>
+              )}
+
+              <p className="mt-2 text-xs text-gray-500">
+                Durée max : {isAdmin ? "illimitée" : `${MAX_VIDEO_DURATION_SECONDS} secondes`} · Taille max : {isAdmin ? "illimitée" : `${MAX_VIDEO_SIZE_MB} Mo`}
+                {!isAdmin && isMobile && " · Compression automatique si > 15 Mo"}
               </p>
 
-              {previewUrl && (
+              {/* Compression progress */}
+              {compressing && (
+                <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+                  <div className="flex items-center justify-between mb-1 text-sm text-blue-700 font-medium">
+                    <span>⚙️ Compression en cours…</span>
+                    <span>{compressionProgress}%</span>
+                  </div>
+                  <div className="w-full bg-blue-200 rounded h-2 overflow-hidden">
+                    <div
+                      className="bg-blue-600 h-2 transition-all duration-200"
+                      style={{ width: `${compressionProgress}%` }}
+                    />
+                  </div>
+                  <p className="mt-1 text-xs text-blue-500">La vidéo est redimensionnée pour accélérer l'envoi…</p>
+                </div>
+              )}
+
+              {/* Compression result info */}
+              {compressionInfo && !compressing && (
+                <div className="mt-2 text-xs text-green-700 bg-green-50 border border-green-200 rounded px-3 py-2">
+                  ✅ Vidéo compressée : {(compressionInfo.compressedSize / 1024 / 1024).toFixed(1)} Mo
+                  {' '}(économie de {((1 - compressionInfo.compressedSize / compressionInfo.originalSize) * 100).toFixed(0)}%)
+                </div>
+              )}
+
+              {/* Desktop: manual compress button if needed */}
+              {!isMobile && needsCompression && !compressing && selectedFile && (
+                <div className="mt-2 flex items-center gap-3">
+                  <span className="text-xs text-orange-600">⚠️ Vidéo trop lourde pour l'envoi direct.</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCompress(selectedFile)}
+                    className="text-xs px-3 py-1 bg-orange-500 text-white rounded hover:bg-orange-600 transition"
+                  >
+                    Compresser
+                  </button>
+                </div>
+              )}
+
+              {/* Selected file name */}
+              {selectedFile && !compressing && (
+                <p className="mt-2 text-xs text-gray-500 truncate">
+                  📎 {selectedFile.name} — {(selectedFile.size / 1024 / 1024).toFixed(1)} Mo
+                </p>
+              )}
+
+              {previewUrl && !compressing && (
                 <div className="mt-3 rounded-md overflow-hidden border">
-                  <video controls src={previewUrl} className="w-full" />
+                  <video controls src={previewUrl} className="w-full" playsInline />
                 </div>
               )}
             </div>
@@ -542,8 +702,8 @@ const SubmitVideoPage = () => {
             )}
 
             <div className="flex items-center gap-3">
-              <Button type="submit" disabled={submitting || !selectedFile}>
-                {submitting ? "Envoi..." : "Envoyer ma vidéo"}
+              <Button type="submit" disabled={submitting || compressing || needsCompression || !selectedFile}>
+                {submitting ? "Envoi..." : compressing ? "Compression…" : "Envoyer ma vidéo"}
               </Button>
 
               <Button type="button" variant="secondary" onClick={() => navigate(`/events/${eventId}/final`)}>
