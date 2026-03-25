@@ -3,6 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import supabase from "../../lib/supabaseClient";
 
+const API_BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const API_KEY = import.meta.env.VITE_BACKEND_API_KEY;
+
+const PAGE_SIZE = 4;
+
 function timeAgo(dateStr) {
   const diff = Date.now() - new Date(dateStr).getTime();
   const min = Math.floor(diff / 60000);
@@ -25,9 +30,13 @@ const NotificationBell = () => {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
   const [open, setOpen] = useState(false);
+  const [page, setPage] = useState(1);
+  const [clearing, setClearing] = useState(false);
   const ref = useRef(null);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const totalPages = Math.ceil(notifications.length / PAGE_SIZE);
+  const paginated = notifications.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   // Chargement initial + realtime
   useEffect(() => {
@@ -38,8 +47,7 @@ const NotificationBell = () => {
         .from("notifications")
         .select("*")
         .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(25);
+        .order("created_at", { ascending: false });
       setNotifications(data || []);
     };
 
@@ -57,6 +65,7 @@ const NotificationBell = () => {
         },
         (payload) => {
           setNotifications((prev) => [payload.new, ...prev]);
+          setPage(1);
         }
       )
       .subscribe();
@@ -73,6 +82,14 @@ const NotificationBell = () => {
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Reset page à l'ouverture
+  const handleToggle = () => {
+    setOpen((prev) => {
+      if (!prev) setPage(1);
+      return !prev;
+    });
+  };
+
   const markAsRead = async (notif) => {
     setOpen(false);
     if (!notif.read) {
@@ -84,14 +101,12 @@ const NotificationBell = () => {
     if (notif.link) {
       try {
         const url = new URL(notif.link);
-        // Même origine → navigation interne
         if (url.origin === window.location.origin) {
           navigate(url.pathname + url.search + url.hash);
         } else {
           window.location.href = notif.link;
         }
       } catch {
-        // Chemin relatif
         navigate(notif.link);
       }
     }
@@ -104,13 +119,31 @@ const NotificationBell = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
 
+  const clearAll = async () => {
+    if (!notifications.length) return;
+    setClearing(true);
+    const res = await fetch(`${API_BASE_URL}/api/notifications/all`, {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json", "x-api-key": API_KEY },
+      body: JSON.stringify({ userId: user.id }),
+    });
+    if (!res.ok) {
+      console.error("Erreur clearAll notifications:", await res.text());
+      setClearing(false);
+      return;
+    }
+    setNotifications([]);
+    setPage(1);
+    setClearing(false);
+  };
+
   if (!user) return null;
 
   return (
     <div ref={ref} className="relative">
       {/* Bouton cloche */}
       <button
-        onClick={() => setOpen((prev) => !prev)}
+        onClick={handleToggle}
         className="relative p-2 rounded-lg text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition"
         aria-label="Notifications"
       >
@@ -128,24 +161,35 @@ const NotificationBell = () => {
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
             <span className="text-sm font-semibold text-gray-900">Notifications</span>
-            {unreadCount > 0 && (
-              <button
-                onClick={markAllRead}
-                className="text-xs text-purple-600 hover:underline"
-              >
-                Tout marquer lu
-              </button>
-            )}
+            <div className="flex items-center gap-3">
+              {unreadCount > 0 && (
+                <button
+                  onClick={markAllRead}
+                  className="text-xs text-purple-600 hover:underline"
+                >
+                  Tout marquer lu
+                </button>
+              )}
+              {notifications.length > 0 && (
+                <button
+                  onClick={clearAll}
+                  disabled={clearing}
+                  className="text-xs text-red-500 hover:underline disabled:opacity-50"
+                >
+                  {clearing ? "…" : "Tout effacer"}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Liste */}
-          <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+          <div className="divide-y divide-gray-50">
             {notifications.length === 0 ? (
               <p className="px-4 py-8 text-sm text-gray-400 text-center">
                 Aucune notification pour l&apos;instant
               </p>
             ) : (
-              notifications.map((notif) => (
+              paginated.map((notif) => (
                 <button
                   key={notif.id}
                   onClick={() => markAsRead(notif)}
@@ -181,6 +225,27 @@ const NotificationBell = () => {
               ))
             )}
           </div>
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between px-4 py-2 border-t border-gray-100">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page === 1}
+                className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                ← Préc.
+              </button>
+              <span className="text-xs text-gray-400">{page} / {totalPages}</span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page === totalPages}
+                className="text-xs text-gray-500 hover:text-gray-700 disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Suiv. →
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
