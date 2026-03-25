@@ -6,7 +6,7 @@ import {
   HiVideoCamera,
   HiLockClosed,
   HiLink,
-  HiBan,
+  HiNoSymbol,
   HiCheckCircle,
   HiEnvelope,
   HiChevronDown,
@@ -277,7 +277,7 @@ const PublicEventPage = () => {
               {(isDone || isCanceled || expired) && (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-red-400/20 text-red-300 border border-red-400/30 backdrop-blur-sm">
                   {isCanceled
-                    ? <><HiBan className="w-3.5 h-3.5" /> Annulé</>
+                    ? <><HiNoSymbol className="w-3.5 h-3.5" /> Annulé</>
                     : <><HiCheckCircle className="w-3.5 h-3.5" /> Terminé</>
                   }
                 </span>
@@ -332,7 +332,7 @@ const PublicEventPage = () => {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex items-start gap-4">
               <div className="w-10 h-10 rounded-xl bg-gray-100 flex items-center justify-center shrink-0">
                 {isCanceled
-                  ? <HiBan className="w-5 h-5 text-gray-500" />
+                  ? <HiNoSymbol className="w-5 h-5 text-gray-500" />
                   : <HiCheckCircle className="w-5 h-5 text-gray-500" />
                 }
               </div>
