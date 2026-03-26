@@ -578,6 +578,40 @@ const videoService = {
     return result;
   },
 
+  /**
+   * Upload vidéo en tant qu'invité (sans compte Supabase)
+   * Route publique — pas d'x-api-key requis
+   */
+  async uploadVideoAsGuest(file, { eventId, guestName }, onProgress) {
+    if (!file) throw new Error("Aucun fichier à envoyer.");
+    if (!eventId) throw new Error("eventId manquant.");
+    if (!guestName || !String(guestName).trim()) throw new Error("Prénom manquant.");
+
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) throw new Error("VITE_BACKEND_URL manquant dans le .env.");
+
+    if (!ALLOWED_VIDEO_TYPES.includes(file.type)) {
+      throw new Error("Format vidéo non supporté. Formats acceptés : MP4 et MOV.");
+    }
+
+    if (file.size > MAX_VIDEO_SIZE_BYTES) {
+      throw new Error(`La vidéo est trop lourde. Taille maximale : ${MAX_VIDEO_SIZE_MB} Mo.`);
+    }
+
+    const safeFileName = sanitizeFileName(file.name);
+    const formData = new FormData();
+    formData.append("video", file, safeFileName);
+    formData.append("eventId", eventId);
+    formData.append("guestName", String(guestName).trim());
+
+    return xhrUpload({
+      url: `${backendUrl}/api/public/videos/upload`,
+      headers: {},
+      formData,
+      onProgress: typeof onProgress === "function" ? onProgress : null,
+    });
+  },
+
   async getFinalVideoJob({ jobId, userId } = {}) {
     if (!jobId) throw new Error("jobId manquant pour récupérer le job.");
 

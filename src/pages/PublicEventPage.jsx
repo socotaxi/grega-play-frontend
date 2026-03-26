@@ -66,6 +66,8 @@ const PublicEventPage = () => {
   const [error, setError]       = useState(null);
   const [isInvited, setIsInvited] = useState(null);
 
+  const [guestName, setGuestName]           = useState("");
+
   const [contactOpen, setContactOpen]       = useState(false);
   const [contactName, setContactName]       = useState("");
   const [contactEmail, setContactEmail]     = useState("");
@@ -378,21 +380,71 @@ const PublicEventPage = () => {
                       <HiVideoCamera className="w-12 h-12 text-brand-400" />
                     </div>
                     <h2 className="text-lg font-bold text-gray-900">Participe à la vidéo !</h2>
-                    <p className="text-sm text-gray-500 mt-1">
-                      Connecte-toi ou crée un compte gratuit pour envoyer ton clip.
-                    </p>
+                    {isPublicEvent ? (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Entre ton prénom et envoie ton clip — sans créer de compte.
+                      </p>
+                    ) : (
+                      <p className="text-sm text-gray-500 mt-1">
+                        Connecte-toi ou crée un compte gratuit pour envoyer ton clip.
+                      </p>
+                    )}
                   </div>
+
+                  {/* Formulaire invité pour les événements publics */}
+                  {isPublicEvent && (
+                    <form
+                      onSubmit={(e) => {
+                        e.preventDefault();
+                        if (!guestName.trim()) return;
+                        navigate(
+                          `/e/${publicCode}/guest-upload?name=${encodeURIComponent(guestName.trim())}`
+                        );
+                      }}
+                      className="space-y-3"
+                    >
+                      <div>
+                        <label className="block text-xs font-semibold text-gray-500 mb-1.5">
+                          Ton prénom
+                        </label>
+                        <input
+                          type="text"
+                          value={guestName}
+                          onChange={(e) => setGuestName(e.target.value)}
+                          placeholder="Ex : Marie"
+                          maxLength={60}
+                          required
+                          className="w-full rounded-xl border border-gray-200 bg-gray-50 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-300 focus:border-transparent"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        disabled={!guestName.trim()}
+                        className="w-full py-3.5 rounded-2xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 active:scale-[0.98] disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm flex items-center justify-center gap-2"
+                      >
+                        <HiVideoCamera className="w-4 h-4" />
+                        Envoyer ma vidéo
+                      </button>
+                    </form>
+                  )}
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <div className="flex-1 h-px bg-gray-100" />
+                    <span className="text-xs text-gray-400">ou avec un compte</span>
+                    <div className="flex-1 h-px bg-gray-100" />
+                  </div>
+
                   <button
                     onClick={goLogin}
-                    className="w-full py-3.5 rounded-2xl bg-brand-600 text-white font-semibold text-sm hover:bg-brand-700 active:scale-[0.98] transition-all shadow-sm"
+                    className="w-full py-2.5 rounded-2xl border border-gray-200 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors"
                   >
-                    Se connecter pour participer
+                    Se connecter
                   </button>
                   <button
                     onClick={goRegister}
-                    className="w-full py-3 rounded-2xl border border-gray-200 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors"
+                    className="w-full py-2.5 rounded-2xl border border-gray-200 text-gray-700 font-medium text-sm hover:bg-gray-50 transition-colors"
                   >
-                    Pas encore de compte ? S'inscrire gratuitement
+                    S'inscrire gratuitement
                   </button>
                 </>
               )}

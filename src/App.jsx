@@ -27,6 +27,7 @@ const CheckoutPremiumPage = lazy(() => import("./pages/CheckoutPremiumPage"));
 const CguPage = lazy(() => import("./pages/CguPage"));
 const ConfidentialitePage = lazy(() => import("./pages/ConfidentialitePage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
+const GuestSubmitPage = lazy(() => import("./pages/GuestSubmitPage"));
 
 const App = () => {
   return (
@@ -57,6 +58,7 @@ const App = () => {
           <Route path="/forgot-password" element={<ForgotPasswordPage />} />
           <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/e/:publicCode" element={<PublicEventPage />} />
+          <Route path="/e/:publicCode/guest-upload" element={<GuestSubmitPage />} />
           {/* player public */}
           <Route path="/player/:publicCode" element={<PublicFinalVideoPage />} />
           {/* page admin */}

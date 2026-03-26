@@ -252,7 +252,7 @@ const RegisterForm = () => {
             name="phoneCountryCode"
             value={formData.phoneCountryCode}
             onChange={handleChange}
-            className={`${selectCls} w-28 flex-shrink-0`}
+            className={`${selectCls} w-20 flex-shrink-0`}
           >
             {phoneCountryOptions.map((p, i) => <option key={i} value={p.value}>{p.value}</option>)}
           </select>
@@ -261,7 +261,7 @@ const RegisterForm = () => {
             name="phoneNumber"
             value={formData.phoneNumber}
             onChange={handleChange}
-            className={`${inputCls} ${phoneError ? "border-red-400 focus:ring-red-400" : ""}`}
+            className={`${inputCls} min-w-0 flex-1 ${phoneError ? "border-red-400 focus:ring-red-400" : ""}`}
             placeholder="06 12 34 56 78"
           />
         </div>
