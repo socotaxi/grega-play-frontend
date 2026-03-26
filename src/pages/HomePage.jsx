@@ -148,13 +148,9 @@ const HomePage = () => {
 
   const handleInstallClick = async (platform = 'web') => {
     if (!deferredPrompt) return;
+    try { await supabase.from('app_install_events').insert([{ platform }]); } catch (_) {}
     deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      supabase.from('app_install_events').insert([{ platform }]).catch(() => {});
-    }
-    // Après la réponse de l'utilisateur, le navigateur ne redéclenche plus
-    // beforeinstallprompt → pas besoin de flag permanent
+    await deferredPrompt.userChoice;
     setDeferredPrompt(null);
     setShowInstallModal(false);
   };
