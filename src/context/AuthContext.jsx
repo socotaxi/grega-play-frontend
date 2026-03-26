@@ -54,13 +54,11 @@ export const AuthProvider = ({ children }) => {
       }
 
       if (error) {
-        console.error("Erreur chargement profil:", error);
         setProfile(null);
       } else {
         setProfile(data);
       }
-    } catch (e) {
-      console.error("Erreur chargement profil (exception):", e);
+    } catch {
       setProfile(null);
     } finally {
       setProfileLoading(false);

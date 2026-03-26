@@ -1,7 +1,7 @@
 // Constantes et fonctions utilitaires partagées entre la page AdminStats
 // et le hook useAdminStats.
 
-export const ADMIN_EMAIL = 'edhemrombhot@gmail.com';
+export const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
 export const DISPLAY_CURRENCY = 'USD';
 export const DISPLAY_LOCALE = 'en-US';
 

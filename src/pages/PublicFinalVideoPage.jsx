@@ -142,10 +142,10 @@ function PublicFinalVideoPage() {
     if (!publicCode) return;
     setLoading(true);
     setError("");
-    fetch(`${import.meta.env.VITE_API_BASE_URL}/api/public/final-video/${publicCode}`)
+    fetch(`${import.meta.env.VITE_BACKEND_URL}/api/public/final-video/${publicCode}`)
       .then(async (r) => {
         const body = await r.json().catch(() => ({}));
-        if (!r.ok) throw new Error(body.message || body.error || "Impossible de charger la vidéo finale");
+        if (!r.ok) throw new Error("Impossible de charger la vidéo finale.");
         return body;
       })
       .then(setData)

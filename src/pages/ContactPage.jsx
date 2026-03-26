@@ -25,7 +25,6 @@ const ContactPage = () => {
 
     // Anti-spam simple : si le champ caché est rempli, on ne soumet pas réellement
     if (formData.website && formData.website.trim().length > 0) {
-      console.warn('Spam détecté via le champ honeypot, requête ignorée.');
       // On simule un succès pour ne pas donner d'indice au bot
       toast.success('Votre message a été envoyé avec succès.');
       setFormData({ name: '', email: '', message: '', website: '' });
@@ -51,7 +50,7 @@ const ContactPage = () => {
 
       // 🔁 On passe maintenant par le backend Node /api/email/contact
       await emailService.sendContactMessage({
-        email: 'edhemrombhot@gmail.com', // destinataire côté backend
+        email: import.meta.env.VITE_ADMIN_EMAIL || '', // destinataire côté backend
         subject: `📩 Message depuis Grega Play - ${formData.name}`,
         content: htmlContent,
         website: formData.website,

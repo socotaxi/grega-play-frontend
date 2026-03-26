@@ -1,6 +1,6 @@
 // src/services/billingService.js
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL;
-const API_SECRET = import.meta.env.VITE_API_SECRET;
+const API_SECRET = import.meta.env.VITE_BACKEND_API_KEY;
 
 if (!BACKEND_URL) {
   console.warn("VITE_BACKEND_URL manquant dans .env");

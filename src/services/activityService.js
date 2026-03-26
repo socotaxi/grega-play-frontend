@@ -30,7 +30,6 @@ const activityService = {
       throw error;
     }
 
-    console.log("✅ Activity logged:", data);
     return data;
   },
 
@@ -54,7 +53,6 @@ const activityService = {
       throw error;
     }
 
-    console.log("✅ Feed récupéré:", data);
     return data;
   },
 

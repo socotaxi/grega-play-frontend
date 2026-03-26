@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react';
 import supabase from '../lib/supabaseClient';
 
-const ADMIN_EMAIL = 'edhemrombhot@gmail.com';
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
 
 export function useIsAdmin() {
   const [isAdmin, setIsAdmin] = useState(null);

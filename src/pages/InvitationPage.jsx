@@ -77,8 +77,7 @@ const InvitationPage = () => {
       if (invitationData.email) {
         setAuthData((prev) => ({ ...prev, email: invitationData.email }));
       }
-    } catch (err) {
-      console.error('Error loading invitation:', err);
+    } catch {
       setError("Erreur lors du chargement de l'invitation");
     } finally {
       setLoading(false);
@@ -99,8 +98,8 @@ const InvitationPage = () => {
         try {
           const result = await invitationService.acceptInvitation(token, user.id);
           if (result) success = true;
-        } catch (e) {
-          console.warn("acceptInvitation a échoué ou n'est pas utilisée :", e);
+        } catch {
+          // méthode optionnelle, échec ignoré
         }
       }
 
@@ -121,8 +120,8 @@ const InvitationPage = () => {
             type: "accepted_invitation",
             message: `${profile?.full_name ? profile.full_name.split(" ")[0] : user.email} a rejoint l'événement 🎉`,
           });
-        } catch (logErr) {
-          console.warn("Erreur logActivity (accepted_invitation):", logErr);
+        } catch {
+          // log activité non bloquant
         }
 
         // Mise à jour locale du statut
@@ -142,8 +141,7 @@ const InvitationPage = () => {
       } else {
         toast.error("Erreur lors de l'acceptation de l'invitation");
       }
-    } catch (error) {
-      console.error('Error accepting invitation:', error);
+    } catch {
       toast.error("Erreur lors de l'acceptation de l'invitation");
     }
   };
@@ -171,8 +169,8 @@ const InvitationPage = () => {
             type: "declined_invitation",
             message: `${profile?.full_name ? profile.full_name.split(" ")[0] : user?.email || 'Un invité'} a refusé l'invitation ❌`,
           });
-        } catch (logErr) {
-          console.warn("Erreur logActivity (declined_invitation):", logErr);
+        } catch {
+          // log activité non bloquant
         }
 
         setInvitation((prev) =>
@@ -181,8 +179,7 @@ const InvitationPage = () => {
       } else {
         toast.error("Erreur lors du refus de l'invitation");
       }
-    } catch (error) {
-      console.error('Error declining invitation:', error);
+    } catch {
       toast.error("Erreur lors du refus de l'invitation");
     }
   };
@@ -219,7 +216,6 @@ const InvitationPage = () => {
       // Après auth, le useEffect user+invitation se charge d'accepter l'invitation
       setShowAuthForm(false);
     } catch (error) {
-      console.error('Auth error:', error);
       toast.error(error.message || "Erreur d'authentification");
     } finally {
       setAuthLoading(false);

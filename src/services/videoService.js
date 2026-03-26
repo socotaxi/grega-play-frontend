@@ -5,7 +5,7 @@ const MAX_VIDEO_SIZE_MB = 50;
 const MAX_VIDEO_SIZE_BYTES = MAX_VIDEO_SIZE_MB * 1024 * 1024;
 const ALLOWED_VIDEO_TYPES = ["video/mp4", "video/quicktime"]; // MP4, MOV
 
-const ADMIN_EMAIL = "edhemrombhot@gmail.com";
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
 const isAdminEmail = (email) => String(email || "").toLowerCase() === ADMIN_EMAIL;
 
 async function getAccessTokenOrThrow() {

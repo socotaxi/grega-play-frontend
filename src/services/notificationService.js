@@ -100,7 +100,6 @@ export async function subscribeToPush(userId) {
     }),
   });
 
-  console.log("📬 Utilisateur abonné aux notifications push avec succès.");
 }
 
 /* -------------------------------------------------------------------------- */

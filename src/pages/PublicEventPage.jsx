@@ -99,7 +99,7 @@ const PublicEventPage = () => {
         const backendUrl = import.meta.env.VITE_BACKEND_URL;
         const res  = await fetch(`${backendUrl}/api/public/event/${publicCode}`);
         const json = await res.json();
-        if (!res.ok) setError(json.error || "Événement introuvable ou expiré.");
+        if (!res.ok) setError("Événement introuvable ou expiré.");
         else setEvent(json.event);
       } catch {
         setError("Une erreur s'est produite.");

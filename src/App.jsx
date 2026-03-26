@@ -21,7 +21,6 @@ const ForgotPasswordPage = lazy(() => import("./pages/ForgotPasswordPage"));
 const ResetPasswordPage = lazy(() => import("./pages/ResetPasswordPage"));
 const PublicEventPage = lazy(() => import("./pages/PublicEventPage"));
 const AdminStatsPage = lazy(() => import("./pages/AdminStatsPage"));
-const VerifyPhonePage = lazy(() => import("./pages/VerifyPhonePage"));
 const PublicFinalVideoPage = lazy(() => import("./pages/PublicFinalVideoPage"));
 const PremiumPage = lazy(() => import("./pages/PremiumPage"));
 const CheckoutPremiumPage = lazy(() => import("./pages/CheckoutPremiumPage"));
@@ -62,7 +61,6 @@ const App = () => {
           <Route path="/player/:publicCode" element={<PublicFinalVideoPage />} />
           {/* page admin */}
           <Route path="/admin/stats" element={<AdminStatsPage />} />
-          <Route path="/verify-phone" element={<VerifyPhonePage />} />
           {/* page Premium */}
           <Route path="/premium" element={<PremiumPage />} />
           {/* tunnel de paiement Premium */}

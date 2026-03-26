@@ -11,7 +11,7 @@ import activityService from "../services/activityService";
 import { useAuth } from "../context/AuthContext";
 import { compressVideo, shouldCompress } from '../utils/videoCompressor';
 
-const ADMIN_EMAIL = "edhemrombhot@gmail.com";
+const ADMIN_EMAIL = import.meta.env.VITE_ADMIN_EMAIL || '';
 const isAdminEmail = (email) => String(email || "").toLowerCase() === ADMIN_EMAIL;
 
 const MAX_VIDEO_DURATION_SECONDS = 30;
