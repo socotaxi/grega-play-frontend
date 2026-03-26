@@ -118,9 +118,9 @@ const HomePage = () => {
   const secondaryCtaLink  = user ? '/dashboard' : '/login';
   const secondaryCtaLabel = user ? 'Voir mes événements' : 'Se connecter';
 
-  const trackInstallClick = async (source = 'home_modal') => {
+  const trackInstallEvent = async (platform = 'home_modal') => {
     try {
-      await supabase.from('app_install_events').insert([{ source }]);
+      await supabase.from('app_install_events').insert([{ platform }]);
     } catch (e) {
       console.error('Erreur tracking installation:', e);
     }
@@ -150,8 +150,16 @@ const HomePage = () => {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  const handleInstallClick = async (source = 'home_modal') => {
-    await trackInstallClick(source);
+  // Écoute l'installation effective (appinstalled)
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const handler = () => trackInstallEvent('web');
+    window.addEventListener('appinstalled', handler);
+    return () => window.removeEventListener('appinstalled', handler);
+  }, []);
+
+  const handleInstallClick = async (source = 'web') => {
+    await trackInstallEvent(source);
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;

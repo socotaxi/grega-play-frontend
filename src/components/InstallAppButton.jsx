@@ -1,4 +1,13 @@
 import { useEffect, useState } from 'react';
+import supabase from '../lib/supabaseClient';
+
+async function trackInstallEvent(platform) {
+  try {
+    await supabase.from('app_install_events').insert([{ platform }]);
+  } catch (e) {
+    console.error('Erreur tracking installation:', e);
+  }
+}
 
 export default function InstallAppButton() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -20,19 +29,18 @@ export default function InstallAppButton() {
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-
+    await trackInstallEvent('install_button');
     deferredPrompt.prompt();
-
-    const { outcome } = await deferredPrompt.userChoice;
-    if (outcome === 'accepted') {
-      console.log('✅ L\'utilisateur a accepté l\'installation');
-    } else {
-      console.log('❌ L\'utilisateur a refusé l\'installation');
-    }
-
+    await deferredPrompt.userChoice;
     setDeferredPrompt(null);
     setShowButton(false);
   };
+
+  useEffect(() => {
+    const handler = () => trackInstallEvent('install_button_appinstalled');
+    window.addEventListener('appinstalled', handler);
+    return () => window.removeEventListener('appinstalled', handler);
+  }, []);
 
   if (!showButton) return null;
 
