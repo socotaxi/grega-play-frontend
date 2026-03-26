@@ -1,14 +1,5 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import supabase from "../../lib/supabaseClient";
-
-async function trackInstallEvent(platform) {
-  try {
-    await supabase.from('app_install_events').insert([{ platform }]);
-  } catch (e) {
-    console.error('Erreur tracking installation:', e);
-  }
-}
 
 export default function InstallPWA() {
   const [deferredPrompt, setDeferredPrompt] = useState(null);
@@ -27,18 +18,11 @@ export default function InstallPWA() {
 
   const handleInstallClick = async () => {
     if (!deferredPrompt) return;
-    await trackInstallEvent('pwa_component');
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     setDeferredPrompt(null);
     setShowInstall(false);
   };
-
-  useEffect(() => {
-    const handler = () => trackInstallEvent('pwa_component_appinstalled');
-    window.addEventListener('appinstalled', handler);
-    return () => window.removeEventListener('appinstalled', handler);
-  }, []);
 
   const handleClose = () => setShowInstall(false);
 

@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import { useAuth } from '../context/AuthContext';
-import supabase from '../lib/supabaseClient';
 
 /* ─── data ──────────────────────────────────────────────── */
 
@@ -118,13 +117,6 @@ const HomePage = () => {
   const secondaryCtaLink  = user ? '/dashboard' : '/login';
   const secondaryCtaLabel = user ? 'Voir mes événements' : 'Se connecter';
 
-  const trackInstallEvent = async (platform = 'home_modal') => {
-    try {
-      await supabase.from('app_install_events').insert([{ platform }]);
-    } catch (e) {
-      console.error('Erreur tracking installation:', e);
-    }
-  };
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -150,16 +142,7 @@ const HomePage = () => {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  // Écoute l'installation effective (appinstalled)
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const handler = () => trackInstallEvent('web');
-    window.addEventListener('appinstalled', handler);
-    return () => window.removeEventListener('appinstalled', handler);
-  }, []);
-
-  const handleInstallClick = async (source = 'web') => {
-    await trackInstallEvent(source);
+  const handleInstallClick = async () => {
     if (!deferredPrompt) return;
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
