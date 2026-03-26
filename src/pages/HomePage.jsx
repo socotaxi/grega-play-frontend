@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import supabase from '../lib/supabaseClient';
 import { Link } from 'react-router-dom';
 import MainLayout from '../components/layout/MainLayout';
 import { useAuth } from '../context/AuthContext';
@@ -142,8 +143,9 @@ const HomePage = () => {
     return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
-  const handleInstallClick = async () => {
+  const handleInstallClick = async (platform = 'web') => {
     if (!deferredPrompt) return;
+    supabase.from('app_install_events').insert([{ platform }]).catch(() => {});
     deferredPrompt.prompt();
     await deferredPrompt.userChoice;
     try { window.localStorage?.setItem('gp_install_prompt_dismissed', '1'); } catch (_) {}

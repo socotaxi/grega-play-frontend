@@ -1,6 +1,5 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { Routes, Route } from "react-router-dom";
-import supabase from "./lib/supabaseClient";
 import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 
@@ -31,15 +30,6 @@ const ConfidentialitePage = lazy(() => import("./pages/ConfidentialitePage"));
 const NotificationsPage = lazy(() => import("./pages/NotificationsPage"));
 
 const App = () => {
-  // Listener unique pour les installations PWA effectives
-  useEffect(() => {
-    const handler = () => {
-      supabase.from('app_install_events').insert([{ platform: 'web' }]).catch(() => {});
-    };
-    window.addEventListener('appinstalled', handler);
-    return () => window.removeEventListener('appinstalled', handler);
-  }, []);
-
   return (
     <>
       {/* Toast notifications */}
