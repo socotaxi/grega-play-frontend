@@ -145,9 +145,11 @@ const HomePage = () => {
 
   const handleInstallClick = async (platform = 'web') => {
     if (!deferredPrompt) return;
-    supabase.from('app_install_events').insert([{ platform }]).catch(() => {});
     deferredPrompt.prompt();
-    await deferredPrompt.userChoice;
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      supabase.from('app_install_events').insert([{ platform }]).catch(() => {});
+    }
     try { window.localStorage?.setItem('gp_install_prompt_dismissed', '1'); } catch (_) {}
     setDeferredPrompt(null);
     setShowInstallModal(false);
