@@ -121,6 +121,8 @@ const HomePage = () => {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+
+    // Déjà installé en mode standalone → ne jamais afficher
     const isStandalone =
       window.matchMedia?.('(display-mode: standalone)').matches ||
       window.navigator.standalone === true;
@@ -132,7 +134,8 @@ const HomePage = () => {
       window.innerWidth <= 768;
     if (!isMobile) return;
 
-    if (window.localStorage?.getItem('gp_install_prompt_dismissed') === '1') return;
+    // Masqué pour cette session ("Plus tard") → ne pas reposer la question
+    if (window.sessionStorage?.getItem('gp_install_dismissed_session') === '1') return;
 
     const handler = (e) => {
       e.preventDefault();
@@ -150,13 +153,15 @@ const HomePage = () => {
     if (outcome === 'accepted') {
       supabase.from('app_install_events').insert([{ platform }]).catch(() => {});
     }
-    try { window.localStorage?.setItem('gp_install_prompt_dismissed', '1'); } catch (_) {}
+    // Après la réponse de l'utilisateur, le navigateur ne redéclenche plus
+    // beforeinstallprompt → pas besoin de flag permanent
     setDeferredPrompt(null);
     setShowInstallModal(false);
   };
 
   const handleCloseInstallModal = () => {
-    try { window.localStorage?.setItem('gp_install_prompt_dismissed', '1'); } catch (_) {}
+    // "Plus tard" → masqué uniquement pour cette session
+    try { window.sessionStorage?.setItem('gp_install_dismissed_session', '1'); } catch (_) {}
     setShowInstallModal(false);
   };
 
