@@ -236,6 +236,77 @@ const VideoCard = memo(function VideoCard({ video, isOwner, canSelect, isSelecte
   );
 });
 
+// ─── DragOrderList ────────────────────────────────────────────────────────────
+const DragOrderList = ({ videos, onReorder, onRemove }) => {
+  const dragItem = useRef(null);
+  const dragOverItem = useRef(null);
+  const [dragOverIndex, setDragOverIndex] = useState(null);
+
+  const handleDragStart = (e, index) => {
+    dragItem.current = index;
+    e.dataTransfer.effectAllowed = "move";
+  };
+  const handleDragEnter = (index) => {
+    dragOverItem.current = index;
+    setDragOverIndex(index);
+  };
+  const handleDragEnd = () => {
+    if (dragItem.current !== null && dragOverItem.current !== null && dragItem.current !== dragOverItem.current) {
+      const next = [...videos];
+      const [dragged] = next.splice(dragItem.current, 1);
+      next.splice(dragOverItem.current, 0, dragged);
+      onReorder(next);
+    }
+    dragItem.current = null;
+    dragOverItem.current = null;
+    setDragOverIndex(null);
+  };
+
+  return (
+    <div className="space-y-2">
+      {videos.map((video, index) => (
+        <div
+          key={video.id}
+          draggable
+          onDragStart={(e) => handleDragStart(e, index)}
+          onDragEnter={() => handleDragEnter(index)}
+          onDragEnd={handleDragEnd}
+          onDragOver={(e) => e.preventDefault()}
+          className={[
+            "flex items-center gap-3 px-3 py-2.5 rounded-xl border-2 bg-white transition-all select-none",
+            dragOverIndex === index && dragItem.current !== index
+              ? "border-indigo-400 shadow-md scale-[1.01]"
+              : "border-gray-200",
+          ].join(" ")}
+        >
+          <div className="w-6 h-6 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0">
+            {index + 1}
+          </div>
+          <div className="w-10 h-14 rounded-lg overflow-hidden bg-gray-900 shrink-0">
+            <video src={video.publicUrl} className="w-full h-full object-cover" preload="metadata" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-semibold text-gray-800 truncate">{video.participant_name || "Auteur inconnu"}</p>
+          </div>
+          <svg className="w-5 h-5 text-gray-300 shrink-0 cursor-grab" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 8h16M4 16h16" />
+          </svg>
+          <button
+            type="button"
+            onClick={() => onRemove(video.id)}
+            className="text-gray-400 hover:text-red-500 transition-colors shrink-0"
+            title="Retirer"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 // ─── SubmittedVideosSection (memoized) ────────────────────────────────────────
 const SubmittedVideosSection = memo(function SubmittedVideosSection({
   submittedVideosWithUrl,
@@ -274,7 +345,7 @@ const SubmittedVideosSection = memo(function SubmittedVideosSection({
             <path strokeLinecap="round" strokeLinejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
           <p className="text-xs text-indigo-700">
-            Clique sur les vidéos pour les sélectionner.
+            Clique sur les vidéos pour les sélectionner, puis réordonne-les par glissement.
             Minimum <strong>2</strong> vidéos
             {Number.isFinite(maxSelectableForFinal) ? <>, maximum <strong>{maxSelectableForFinal}</strong></> : ""}.
           </p>
@@ -314,7 +385,7 @@ const FinalVideoPage = () => {
 
   const [error, setError] = useState(null);
   const [submittedVideos, setSubmittedVideos] = useState([]);
-  const [selectedVideoIds, setSelectedVideoIds] = useState([]);
+  const [orderedSelectedVideos, setOrderedSelectedVideos] = useState([]);
 
   const [capabilities, setCapabilities] = useState(null);
   const [capLoading, setCapLoading] = useState(true);
@@ -606,6 +677,8 @@ const FinalVideoPage = () => {
     return (submittedVideos || []).map((v) => ({ ...v, publicUrl: getPublicVideoUrl(v.storage_path) })).filter((v) => Boolean(v.publicUrl));
   }, [submittedVideos]);
 
+  const selectedVideoIds = useMemo(() => orderedSelectedVideos.map((v) => v.id), [orderedSelectedVideos]);
+
   useEffect(() => {
     if (!eventId) return;
     const channel = supabase
@@ -697,7 +770,7 @@ const FinalVideoPage = () => {
     try {
       await videoService.deleteVideo(videoId);
       setSubmittedVideos((prev) => prev.filter((v) => v.id !== videoId));
-      setSelectedVideoIds((prev) => prev.filter((id) => id !== videoId));
+      setOrderedSelectedVideos((prev) => prev.filter((v) => v.id !== videoId));
     } catch (err) {
       console.error("Erreur suppression vidéo :", err);
       alert("Erreur lors de la suppression de la vidéo.");
@@ -706,8 +779,13 @@ const FinalVideoPage = () => {
 
   const toggleSelectVideo = useCallback((videoId) => {
     if (!isOwner) return;
-    setSelectedVideoIds((prev) => prev.includes(videoId) ? prev.filter((id) => id !== videoId) : [...prev, videoId]);
-  }, [isOwner]);
+    setOrderedSelectedVideos((prev) => {
+      if (prev.find((v) => v.id === videoId)) return prev.filter((v) => v.id !== videoId);
+      const video = submittedVideosWithUrl.find((v) => v.id === videoId);
+      if (!video) return prev;
+      return [...prev, video];
+    });
+  }, [isOwner, submittedVideosWithUrl]);
 
   const handleCancelGeneration = useCallback(async () => {
     stopProcessingUi({ toastMessage: "Montage annulé." });
@@ -934,6 +1012,26 @@ const FinalVideoPage = () => {
             userId={user?.id}
             maxSelectableForFinal={maxSelectableForFinal}
           />
+
+          {/* ── Ordre du montage ──────────────────────────────────── */}
+          {isOwner && canStartProcessingNow && orderedSelectedVideos.length >= 1 && (
+            <SectionCard
+              icon={<IconFilm />}
+              title="Ordre du montage"
+              right={
+                <span className="text-xs text-gray-400">Glisse pour réordonner</span>
+              }
+            >
+              <p className="text-xs text-gray-500 mb-3">
+                Les clips seront assemblés dans cet ordre. Glisse les lignes pour modifier la séquence.
+              </p>
+              <DragOrderList
+                videos={orderedSelectedVideos}
+                onReorder={setOrderedSelectedVideos}
+                onRemove={(videoId) => setOrderedSelectedVideos((prev) => prev.filter((v) => v.id !== videoId))}
+              />
+            </SectionCard>
+          )}
 
           {/* ── Empty state ───────────────────────────────────────── */}
           {!finalVideo && submittedVideosWithUrl.length === 0 && (

@@ -7,6 +7,8 @@ import PremiumStats from '../components/dashboard/PremiumStats';
 import EventCard from '../components/dashboard/EventCard';
 import VisitedEventsSection from '../components/dashboard/VisitedEventsSection';
 import { useDashboardData } from '../hooks/useDashboardData';
+import OnboardingTour from '../components/onboarding/OnboardingTour';
+import { useOnboardingTour } from '../hooks/useOnboardingTour';
 
 const QuickStat = ({ icon, label, value, bgColor, iconColor }) => (
   <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-4 flex items-center gap-3">
@@ -38,6 +40,8 @@ const DashboardPage = () => {
     handleJoinVisited,
     clearVisited,
   } = useDashboardData();
+
+  const { activeStep, advance, skip } = useOnboardingTour(user?.id, sortedEvents.length > 0);
 
   if (loading) {
     return (
@@ -155,6 +159,7 @@ const DashboardPage = () => {
                       </p>
                       <Link
                         to="/create-event"
+                        data-onboarding="create-btn"
                         className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold text-sm rounded-xl transition-colors shadow-sm"
                       >
                         <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
@@ -221,6 +226,8 @@ const DashboardPage = () => {
           </div>
         </div>
       </div>
+
+      <OnboardingTour activeStep={activeStep} onAdvance={advance} onSkip={skip} />
     </MainLayout>
   );
 };

@@ -1,5 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, useCallback } from "react";
 import { useParams } from "react-router-dom";
+import supabase from "../lib/supabaseClient";
+import reactionService, { ALLOWED_EMOJIS } from "../services/reactionService";
 
 // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -9,92 +11,109 @@ function formatDate(iso) {
   return d.toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 }
 
-function buildShareUrl(publicCode) {
-  const backendUrl = import.meta.env.VITE_API_BASE_URL || "";
-  if (backendUrl) return `${backendUrl}/share/v/${publicCode}`;
-  return `${window.location.origin}/player/${publicCode}`;
-}
+// ─── Reactions bar ───────────────────────────────────────────────────────────
 
-// ─── Share buttons ───────────────────────────────────────────────────────────
+function ReactionsBar({ publicCode }) {
+  const [counts, setCounts]       = useState({});
+  const [myReaction, setMyReaction] = useState(null);
+  const [loading, setLoading]     = useState(true);
+  const [animating, setAnimating] = useState(null); // emoji en cours d'animation
 
-function ShareBar({ publicCode, title }) {
-  const [copied, setCopied] = useState(false);
-  const shareUrl = buildShareUrl(publicCode);
-  const shareText = encodeURIComponent(`🎬 Regardez notre montage vidéo "${title}" !`);
-  const whatsappUrl = `https://wa.me/?text=${shareText}%20${encodeURIComponent(shareUrl)}`;
+  // Chargement initial
+  useEffect(() => {
+    if (!publicCode) return;
+    Promise.all([
+      reactionService.getCounts(publicCode),
+      reactionService.getMyReaction(publicCode),
+    ]).then(([c, my]) => {
+      setCounts(c);
+      setMyReaction(my);
+    }).finally(() => setLoading(false));
+  }, [publicCode]);
 
-  function handleCopy() {
-    navigator.clipboard.writeText(shareUrl).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+  // Abonnement Realtime
+  useEffect(() => {
+    if (!publicCode) return;
+    const channel = supabase
+      .channel(`reactions-${publicCode}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "final_video_reactions", filter: `public_code=eq.${publicCode}` },
+        async () => {
+          const updated = await reactionService.getCounts(publicCode);
+          setCounts(updated);
+        }
+      )
+      .subscribe();
+    return () => supabase.removeChannel(channel);
+  }, [publicCode]);
+
+  const handleToggle = useCallback(async (emoji) => {
+    const prev = myReaction;
+    const isToggleOff = prev === emoji;
+
+    // Optimistic update
+    setMyReaction(isToggleOff ? null : emoji);
+    setCounts((c) => {
+      const next = { ...c };
+      if (prev) next[prev] = Math.max(0, (next[prev] || 1) - 1);
+      if (!isToggleOff) next[emoji] = (next[emoji] || 0) + 1;
+      return next;
     });
-  }
 
-  async function handleNativeShare() {
-    if (!navigator.share) return handleCopy();
+    // Animation burst
+    setAnimating(emoji);
+    setTimeout(() => setAnimating(null), 400);
+
     try {
-      await navigator.share({ title, url: shareUrl });
+      await reactionService.toggleReaction(publicCode, emoji);
     } catch {
-      // user cancelled — no-op
+      // Rollback
+      setMyReaction(prev);
+      setCounts((c) => {
+        const next = { ...c };
+        if (!isToggleOff) next[emoji] = Math.max(0, (next[emoji] || 1) - 1);
+        if (prev) next[prev] = (next[prev] || 0) + 1;
+        return next;
+      });
     }
-  }
+  }, [publicCode, myReaction]);
+
+  const total = Object.values(counts).reduce((s, n) => s + n, 0);
 
   return (
-    <div className="flex flex-wrap gap-3 justify-center mt-6">
-      {/* WhatsApp */}
-      <a
-        href={whatsappUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-[#25D366] text-white font-semibold text-sm shadow hover:brightness-110 transition"
-      >
-        <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-          <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/>
-          <path d="M12 0C5.373 0 0 5.373 0 12c0 2.115.549 4.1 1.51 5.833L.057 23.082a.75.75 0 0 0 .924.908l5.42-1.424A11.944 11.944 0 0 0 12 24c6.627 0 12-5.373 12-12S18.627 0 12 0zm0 21.75a9.7 9.7 0 0 1-4.953-1.354l-.355-.212-3.684.968.984-3.594-.233-.37A9.693 9.693 0 0 1 2.25 12C2.25 6.615 6.615 2.25 12 2.25S21.75 6.615 21.75 12 17.385 21.75 12 21.75z"/>
-        </svg>
-        WhatsApp
-      </a>
-
-      {/* Copy link */}
-      <button
-        onClick={handleCopy}
-        className={`flex items-center gap-2 px-5 py-2.5 rounded-full border font-semibold text-sm shadow transition ${
-          copied
-            ? "bg-emerald-500 border-emerald-500 text-white"
-            : "bg-white border-emerald-200 text-emerald-700 hover:bg-emerald-50"
-        }`}
-      >
-        {copied ? (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-            </svg>
-            Lien copié !
-          </>
-        ) : (
-          <>
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round"
-                d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-            </svg>
-            Copier le lien
-          </>
-        )}
-      </button>
-
-      {/* Native share (mobile) */}
-      {typeof navigator !== "undefined" && navigator.share && (
-        <button
-          onClick={handleNativeShare}
-          className="flex items-center gap-2 px-5 py-2.5 rounded-full bg-emerald-500 text-white font-semibold text-sm shadow hover:bg-emerald-600 transition"
-        >
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round"
-              d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-          </svg>
-          Partager
-        </button>
+    <div className="mt-6">
+      {total > 0 && (
+        <p className="text-center text-xs text-gray-400 mb-3">
+          {total} réaction{total > 1 ? "s" : ""}
+        </p>
       )}
+      <div className="flex flex-wrap gap-2 justify-center">
+        {ALLOWED_EMOJIS.map((emoji) => {
+          const count = counts[emoji] || 0;
+          const isActive = myReaction === emoji;
+          const isBursting = animating === emoji;
+
+          return (
+            <button
+              key={emoji}
+              onClick={() => handleToggle(emoji)}
+              disabled={loading}
+              style={{ transform: isBursting ? "scale(1.35)" : "scale(1)", transition: "transform 0.2s cubic-bezier(.34,1.56,.64,1)" }}
+              className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-full text-sm font-semibold border select-none transition-colors
+                ${isActive
+                  ? "bg-emerald-50 border-emerald-300 text-emerald-700 shadow-sm"
+                  : "bg-white border-gray-200 text-gray-600 hover:border-gray-300 hover:bg-gray-50"
+                } disabled:opacity-50`}
+            >
+              <span className="text-lg leading-none">{emoji}</span>
+              {count > 0 && (
+                <span className="tabular-nums text-xs">{count}</span>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -228,11 +247,11 @@ function PublicFinalVideoPage() {
           />
         </div>
 
-        {/* ── Share section ── */}
+        {/* ── Reactions section ── */}
         <div className="bg-white border border-emerald-100 rounded-2xl px-5 py-5 text-center shadow-sm">
           <p className="text-gray-700 font-semibold mb-1">Tu as aimé ce montage ?</p>
-          <p className="text-gray-400 text-sm">Partage-le avec tes proches !</p>
-          <ShareBar publicCode={publicCode} title={data.title} />
+          <p className="text-gray-400 text-sm">Laisse une réaction !</p>
+          <ReactionsBar publicCode={publicCode} />
         </div>
 
         {/* ── CTA ── */}

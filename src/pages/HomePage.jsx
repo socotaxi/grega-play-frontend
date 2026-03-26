@@ -109,7 +109,6 @@ const USE_CASES = [
 
 const HomePage = () => {
   const { user } = useAuth();
-  const [videoActive, setVideoActive] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState(null);
   const [showInstallModal, setShowInstallModal] = useState(false);
 
@@ -193,10 +192,10 @@ const HomePage = () => {
           )}
 
           <div className="relative max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-            <div className="flex flex-col lg:flex-row lg:items-center gap-12 lg:gap-16">
+            <div className="flex flex-col items-center text-center">
 
-              {/* Left — copy */}
-              <div className="lg:w-[52%] space-y-6">
+              {/* Copy */}
+              <div className="max-w-2xl space-y-6">
                 <span className="inline-flex items-center gap-2 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-wider text-emerald-400">
                   <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Montage vidéo collaboratif
@@ -239,58 +238,6 @@ const HomePage = () => {
                   </svg>
                   Aucun logiciel à installer · Gratuit pour commencer
                 </p>
-              </div>
-
-              {/* Right — video */}
-              <div className="lg:w-[48%] flex justify-center lg:justify-end">
-                <div className="w-full max-w-[280px] sm:max-w-[300px]">
-                  <div className="bg-white/5 backdrop-blur border border-white/10 rounded-3xl p-3 shadow-2xl shadow-black/40">
-                    {/* Fake phone notch bar */}
-                    <div className="flex items-center justify-between px-3 py-2 mb-2">
-                      <span className="text-[10px] text-white/30 font-medium">Grega Play</span>
-                      <div className="flex gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
-                        <span className="w-1.5 h-1.5 rounded-full bg-white/20" />
-                      </div>
-                    </div>
-                    {/* 9:16 video */}
-                    <div className="relative w-full rounded-2xl overflow-hidden bg-black" style={{ paddingTop: '177.78%' }}>
-                      {videoActive ? (
-                        <iframe
-                          src="https://www.youtube.com/embed/sCIDewhYZR0?si=kLfDvvltSHj2-pWO&autoplay=1"
-                          title="Présentation de Grega Play"
-                          className="absolute top-0 left-0 w-full h-full rounded-2xl"
-                          style={{ border: 0 }}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                          allowFullScreen
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => setVideoActive(true)}
-                          className="absolute top-0 left-0 w-full h-full group"
-                          aria-label="Lancer la vidéo de présentation Grega Play"
-                        >
-                          <img
-                            src="https://img.youtube.com/vi/sCIDewhYZR0/hqdefault.jpg"
-                            alt="Aperçu vidéo Grega Play"
-                            loading="lazy"
-                            className="w-full h-full object-cover"
-                          />
-                          <div className="absolute inset-0 bg-black/30 flex flex-col items-center justify-center gap-3">
-                            <div className="w-14 h-14 rounded-full bg-white/90 flex items-center justify-center shadow-xl group-hover:scale-105 transition-transform">
-                              <svg className="w-6 h-6 text-gray-900 ml-1" fill="currentColor" viewBox="0 0 24 24">
-                                <path d="M8 5v14l11-7z" />
-                              </svg>
-                            </div>
-                            <span className="text-[11px] text-white/80 font-medium">Voir la démo · 1 min</span>
-                          </div>
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
               </div>
 
             </div>
